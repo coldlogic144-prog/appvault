@@ -8,20 +8,24 @@ import {
   updateDeviceCallsign,
   getLocalDeviceId
 } from '../services/device';
-import type { Device } from '@comiclink/shared-types';
+import { getPairedDevices } from '../services/pairing';
+import type { Device, PairedDevice } from '@comiclink/shared-types';
+import PairingModal from '../components/pairing/PairingModal';
 import {
   MonitorSmartphone,
   Laptop,
   Smartphone,
   Globe,
   ShieldAlert,
+  ShieldCheck,
   Edit3,
   RefreshCw,
   Radio,
   Plus,
   Key,
   Check,
-  X
+  X,
+  Link2
 } from 'lucide-react';
 
 export default function DevicesPage() {
@@ -29,8 +33,10 @@ export default function DevicesPage() {
   const currentDeviceId = getLocalDeviceId();
 
   const [devices, setDevices] = useState<Device[]>([]);
+  const [pairedDevices, setPairedDevices] = useState<PairedDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPairingModalOpen, setIsPairingModalOpen] = useState(false);
 
   // Renaming station state
   const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
@@ -45,8 +51,12 @@ export default function DevicesPage() {
     setLoading(true);
     setError(null);
     try {
-      const fleet = await getUserDevices(currentUser.uid);
+      const [fleet, paired] = await Promise.all([
+        getUserDevices(currentUser.uid),
+        getPairedDevices(currentUser.uid)
+      ]);
       setDevices(fleet);
+      setPairedDevices(paired);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch registered devices.');
     } finally {
@@ -130,6 +140,16 @@ export default function DevicesPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <ComicButton
+            variant="accent"
+            size="sm"
+            onClick={() => setIsPairingModalOpen(true)}
+            className="flex items-center gap-1.5"
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            <span>PAIR STATION</span>
+          </ComicButton>
+
           <ComicButton
             variant="ghost"
             size="sm"
@@ -270,8 +290,11 @@ export default function DevicesPage() {
         })}
 
         {/* Add New Station Panel */}
-        <div className="border-4 border-dashed border-border rounded-none p-6 flex flex-col items-center justify-center text-center gap-3 bg-panel/30 hover:border-accent-yellow transition-colors">
-          <div className="w-12 h-12 rounded-full bg-ink border-2 border-border flex items-center justify-center text-text-muted">
+        <div
+          onClick={() => setIsPairingModalOpen(true)}
+          className="border-4 border-dashed border-border rounded-none p-6 flex flex-col items-center justify-center text-center gap-3 bg-panel/30 hover:border-accent-yellow transition-colors cursor-pointer"
+        >
+          <div className="w-12 h-12 rounded-full bg-ink border-2 border-border flex items-center justify-center text-text-muted group-hover:text-accent-yellow">
             <Plus className="w-6 h-6 text-accent-yellow" />
           </div>
           <div>
@@ -279,14 +302,52 @@ export default function DevicesPage() {
               Pair Additional Station
             </h4>
             <p className="text-xs text-text-muted max-w-xs mt-1">
-              Secure QR / cryptographic key exchange module scheduled for Phase 2.5 / Phase 3.
+              Initialize cryptographic QR beacon or link companion device via 6-digit code.
             </p>
           </div>
-          <span className="text-[10px] font-mono font-bold text-accent-blue bg-ink px-2.5 py-1 border border-border uppercase">
-            Device Subcollections Active
+          <span className="text-[10px] font-mono font-bold text-accent-yellow bg-ink px-2.5 py-1 border border-border uppercase flex items-center gap-1">
+            <Radio className="w-2.5 h-2.5" /> Launch Pairing Beacon
           </span>
         </div>
       </div>
+
+      {/* Paired Stations Section */}
+      {pairedDevices.length > 0 && (
+        <div className="mt-4 space-y-4">
+          <div className="border-b-2 border-border pb-2 flex items-center gap-2">
+            <Link2 className="w-5 h-5 text-accent-yellow" />
+            <h2 className="text-xl font-black uppercase text-text tracking-wide">
+              Mutual Station Links ({pairedDevices.length})
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pairedDevices.map((pair) => (
+              <ComicPanel key={pair.pairId} title="MUTUAL STATION LINK">
+                <div className="py-2 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-text uppercase flex items-center gap-1.5">
+                      <Laptop className="w-4 h-4 text-accent-blue" />
+                      {pair.deviceNameA}
+                    </span>
+                    <span className="text-accent-yellow font-bold">⟷</span>
+                    <span className="font-bold text-text uppercase flex items-center gap-1.5">
+                      <Laptop className="w-4 h-4 text-green-400" />
+                      {pair.deviceNameB}
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-text-muted bg-ink p-1.5 border border-border truncate">
+                    Link: {pair.pairId}
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-green-400 font-bold uppercase">
+                    <ShieldCheck className="w-3 h-3" /> Authorized Peer Channel
+                  </div>
+                </div>
+              </ComicPanel>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Revocation Confirmation Modal */}
       {revokingDevice && (
@@ -331,6 +392,15 @@ export default function DevicesPage() {
           </div>
         </div>
       )}
+
+      {/* Interactive Pairing Modal */}
+      <PairingModal
+        isOpen={isPairingModalOpen}
+        onClose={() => setIsPairingModalOpen(false)}
+        onPairingSuccess={() => {
+          fetchFleet();
+        }}
+      />
     </div>
   );
 }

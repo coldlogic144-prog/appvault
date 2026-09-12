@@ -121,15 +121,136 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Pairing Sessions (Cloud Functions only)
-    match /pairingSessions/{sessionId} {
-      allow read, write: if false;
+    function isDeviceActive(uid, devId) {
+      return devId is string
+             && exists(/databases/$(database)/documents/users/$(uid)/devices/$(devId))
+             && get(/databases/$(database)/documents/users/$(uid)/devices/$(devId)).data.isRevoked == false;
     }
 
-    // Paired Devices
+    // ==========================================
+    // 3. Pairing Sessions: pairingSessions/{sessionId}
+    // ==========================================
+    match /pairingSessions/{sessionId} {
+      // Direct get allowed for involved parties or targets inspecting a pending invite
+      allow get: if isAuthenticated() && (
+        resource.data.initiatorUserId == request.auth.uid ||
+        resource.data.targetUserId == request.auth.uid ||
+        resource.data.status == 'pending'
+      );
+
+      // List queries strictly forbidden to prevent network session enumeration
+      allow list: if false;
+
+      // Creation by authenticated initiator for an active, unrevoked device
+      allow create: if isAuthenticated()
+                    && request.resource.data.sessionId == sessionId
+                    && request.resource.data.initiatorUserId == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.targetUserId == null
+                    && request.resource.data.targetDeviceId == null
+                    && request.resource.data.targetDeviceName == null
+                    && request.resource.data.approvedAt == null
+                    && request.resource.data.completedAt == null
+                    && request.resource.data.cancelledAt == null
+                    && request.resource.data.rejectedAt == null
+                    && request.resource.data.pairingCode is string
+                    && request.resource.data.pairingCode.size() >= 6
+                    && request.resource.data.pairingCode.size() <= 16
+                    && request.resource.data.challengeHash is string
+                    && request.resource.data.challengeHash.size() >= 16
+                    && request.resource.data.challengeHash.size() <= 128
+                    && request.resource.data.initiatorDeviceName is string
+                    && request.resource.data.initiatorDeviceName.size() > 0
+                    && request.resource.data.initiatorDeviceName.size() <= 100
+                    && request.resource.data.initiatorDeviceId is string
+                    && request.resource.data.createdAt is timestamp
+                    && request.resource.data.expiresAt is timestamp
+                    && request.resource.data.expiresAt > request.resource.data.createdAt
+                    && isDeviceActive(request.auth.uid, request.resource.data.initiatorDeviceId)
+                    && request.resource.data.keys().hasAll(['sessionId', 'initiatorUserId', 'initiatorDeviceId', 'initiatorDeviceName', 'pairingCode', 'status', 'targetUserId', 'targetDeviceId', 'targetDeviceName', 'challengeHash', 'createdAt', 'expiresAt', 'approvedAt', 'completedAt', 'cancelledAt', 'rejectedAt'])
+                    && request.resource.data.keys().hasOnly(['sessionId', 'initiatorUserId', 'initiatorDeviceId', 'initiatorDeviceName', 'pairingCode', 'status', 'targetUserId', 'targetDeviceId', 'targetDeviceName', 'challengeHash', 'createdAt', 'expiresAt', 'approvedAt', 'completedAt', 'cancelledAt', 'rejectedAt']);
+
+      // Status transitions: strictly validated one-way transitions
+      allow update: if isAuthenticated()
+                    && request.resource.data.sessionId == resource.data.sessionId
+                    && request.resource.data.initiatorUserId == resource.data.initiatorUserId
+                    && request.resource.data.initiatorDeviceId == resource.data.initiatorDeviceId
+                    && request.resource.data.challengeHash == resource.data.challengeHash
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.expiresAt == resource.data.expiresAt
+                    && (
+                      // 1. Initiator cancels pending session
+                      (resource.data.status == 'pending'
+                        && request.resource.data.status == 'cancelled'
+                        && request.auth.uid == resource.data.initiatorUserId
+                        && request.resource.data.cancelledAt is timestamp
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt']))
+                      ||
+                      // 2. Target approves pending session before expiration
+                      (resource.data.status == 'pending'
+                        && request.resource.data.status == 'approved'
+                        && request.time < resource.data.expiresAt
+                        && request.resource.data.targetUserId == request.auth.uid
+                        && request.resource.data.targetDeviceId != resource.data.initiatorDeviceId
+                        && request.resource.data.targetDeviceName is string
+                        && request.resource.data.targetDeviceName.size() > 0
+                        && request.resource.data.targetDeviceName.size() <= 100
+                        && request.resource.data.approvedAt is timestamp
+                        && isDeviceActive(request.auth.uid, request.resource.data.targetDeviceId)
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'targetUserId', 'targetDeviceId', 'targetDeviceName', 'approvedAt']))
+                      ||
+                      // 3. Target rejects pending session
+                      (resource.data.status == 'pending'
+                        && request.resource.data.status == 'rejected'
+                        && request.resource.data.targetUserId == request.auth.uid
+                        && request.resource.data.rejectedAt is timestamp
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'targetUserId', 'rejectedAt']))
+                      ||
+                      // 4. Initiator finalizes approved session
+                      (resource.data.status == 'approved'
+                        && request.resource.data.status == 'completed'
+                        && request.auth.uid == resource.data.initiatorUserId
+                        && request.resource.data.completedAt is timestamp
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt']))
+                    );
+
+      // Deletion is prohibited
+      allow delete: if false;
+    }
+
+    // Pairing Code Index (Single doc lookup by code, list enumeration blocked)
+    match /pairingCodes/{code} {
+      allow get: if isAuthenticated();
+      allow list: if false;
+      allow create: if isAuthenticated()
+                    && request.resource.data.code == code
+                    && request.resource.data.sessionId is string
+                    && request.resource.data.createdAt is timestamp;
+      allow update, delete: if false;
+    }
+
+    // ==========================================
+    // 4. Paired Devices: pairedDevices/{pairId}
+    // ==========================================
     match /pairedDevices/{pairId} {
-      allow read: if isOwner(resource.data.ownerUid);
-      allow write: if false; // Cloud Functions only
+      allow get, list: if isAuthenticated() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.userA == request.auth.uid ||
+        resource.data.userB == request.auth.uid
+      );
+
+      allow create: if isAuthenticated()
+                    && (request.resource.data.ownerUid == request.auth.uid || request.resource.data.userA == request.auth.uid)
+                    && request.resource.data.status == 'active'
+                    && request.resource.data.createdAt is timestamp;
+
+      allow update: if isAuthenticated()
+                    && (resource.data.ownerUid == request.auth.uid || resource.data.userA == request.auth.uid || resource.data.userB == request.auth.uid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'unpairedAt'])
+                    && request.resource.data.status == 'unpaired'
+                    && request.resource.data.unpairedAt is timestamp;
+
+      allow delete: if false;
     }
 
     // Files Collection

@@ -429,3 +429,275 @@ test('40. Device: User A cannot delete device directly', async () => {
   const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
   await assertFails(userADb.doc('users/userA/devices/dev1').delete());
 });
+
+// =============================================================================
+// PAIRING SESSIONS & PAIRED DEVICES SECURITY INTEGRATION TESTS (41 - 58)
+// =============================================================================
+
+function getValidPairingSession(sessionId, initiatorUserId, initiatorDeviceId) {
+  return {
+    sessionId,
+    initiatorUserId,
+    initiatorDeviceId,
+    initiatorDeviceName: 'Station-Alpha',
+    pairingCode: 'CL-A1B2C3',
+    status: 'pending',
+    targetUserId: null,
+    targetDeviceId: null,
+    targetDeviceName: null,
+    challengeHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    createdAt: new Date(),
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    approvedAt: null,
+    completedAt: null,
+    cancelledAt: null,
+    rejectedAt: null
+  };
+}
+
+test('41. Pairing: Unauthenticated user cannot create pairing session', async () => {
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+  await assertFails(unauthDb.doc('pairingSessions/sess1').set(getValidPairingSession('sess1', 'userA', 'dev1')));
+});
+
+test('42. Pairing: User A can create valid pending pairing session for own active device', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('pairingSessions/sess1').set(getValidPairingSession('sess1', 'userA', 'dev1')));
+});
+
+test('43. Pairing: Initiator cannot create pairing session if initiator device is revoked', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const revoked = getValidDevice('dev-revoked', 'userA');
+    revoked.isRevoked = true;
+    revoked.revokedAt = new Date();
+    await context.firestore().doc('users/userA/devices/dev-revoked').set(revoked);
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('pairingSessions/sess-rev').set(getValidPairingSession('sess-rev', 'userA', 'dev-revoked')));
+});
+
+test('44. Pairing: Initiator cannot create session with false initiatorUserId', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  // userA pretending initiator is userB
+  await assertFails(userADb.doc('pairingSessions/sess2').set(getValidPairingSession('sess2', 'userB', 'dev1')));
+});
+
+test('45. Pairing: Pairing session cannot be created with non-pending status', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const invalidStatus = getValidPairingSession('sess3', 'userA', 'dev1');
+  invalidStatus.status = 'approved';
+  await assertFails(userADb.doc('pairingSessions/sess3').set(invalidStatus));
+});
+
+test('46. Pairing: Pairing session cannot be created with missing required fields', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('pairingSessions/sess4').set({
+    sessionId: 'sess4',
+    initiatorUserId: 'userA',
+    status: 'pending'
+  }));
+});
+
+test('47. Pairing: Collection list queries on pairingSessions are denied (anti-enumeration)', async () => {
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.collection('pairingSessions').get());
+});
+
+test('48. Pairing: User B can read a pending pairing session by direct ID lookup', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('pairingSessions/sess-pending').set(getValidPairingSession('sess-pending', 'userA', 'dev1'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertSucceeds(userBDb.doc('pairingSessions/sess-pending').get());
+});
+
+test('49. Pairing: User A can cancel their own pending session', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('pairingSessions/sess-cancel').set(getValidPairingSession('sess-cancel', 'userA', 'dev1'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('pairingSessions/sess-cancel').update({
+    status: 'cancelled',
+    cancelledAt: new Date()
+  }));
+});
+
+test('50. Pairing: User B cannot cancel User A pending session', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('pairingSessions/sess-cancel-b').set(getValidPairingSession('sess-cancel-b', 'userA', 'dev1'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertFails(userBDb.doc('pairingSessions/sess-cancel-b').update({
+    status: 'cancelled',
+    cancelledAt: new Date()
+  }));
+});
+
+test('51. Pairing: Target User B can approve User A pending session before expiration', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('users/userB/devices/dev2').set(getValidDevice('dev2', 'userB'));
+    await context.firestore().doc('pairingSessions/sess-approve').set(getValidPairingSession('sess-approve', 'userA', 'dev1'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertSucceeds(userBDb.doc('pairingSessions/sess-approve').update({
+    status: 'approved',
+    targetUserId: 'userB',
+    targetDeviceId: 'dev2',
+    targetDeviceName: 'Station-Beta',
+    approvedAt: new Date()
+  }));
+});
+
+test('52. Pairing: Target User B cannot approve session using a revoked device', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    const revoked = getValidDevice('dev-rev-b', 'userB');
+    revoked.isRevoked = true;
+    revoked.revokedAt = new Date();
+    await context.firestore().doc('users/userB/devices/dev-rev-b').set(revoked);
+    await context.firestore().doc('pairingSessions/sess-rev-b').set(getValidPairingSession('sess-rev-b', 'userA', 'dev1'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertFails(userBDb.doc('pairingSessions/sess-rev-b').update({
+    status: 'approved',
+    targetUserId: 'userB',
+    targetDeviceId: 'dev-rev-b',
+    targetDeviceName: 'Station-Revoked',
+    approvedAt: new Date()
+  }));
+});
+
+test('53. Pairing: Target User B cannot approve an expired session', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('users/userB/devices/dev2').set(getValidDevice('dev2', 'userB'));
+    const expiredSession = getValidPairingSession('sess-expired', 'userA', 'dev1');
+    expiredSession.expiresAt = new Date(Date.now() - 60 * 1000); // Expired 1 min ago
+    await context.firestore().doc('pairingSessions/sess-expired').set(expiredSession);
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertFails(userBDb.doc('pairingSessions/sess-expired').update({
+    status: 'approved',
+    targetUserId: 'userB',
+    targetDeviceId: 'dev2',
+    targetDeviceName: 'Station-Beta',
+    approvedAt: new Date()
+  }));
+});
+
+test('54. Pairing: Target User B cannot approve an already cancelled session', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('users/userB/devices/dev2').set(getValidDevice('dev2', 'userB'));
+    const cancelled = getValidPairingSession('sess-was-cancelled', 'userA', 'dev1');
+    cancelled.status = 'cancelled';
+    cancelled.cancelledAt = new Date();
+    await context.firestore().doc('pairingSessions/sess-was-cancelled').set(cancelled);
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertFails(userBDb.doc('pairingSessions/sess-was-cancelled').update({
+    status: 'approved',
+    targetUserId: 'userB',
+    targetDeviceId: 'dev2',
+    targetDeviceName: 'Station-Beta',
+    approvedAt: new Date()
+  }));
+});
+
+test('55. Pairing: User C cannot tamper with session approved between User A and User B', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('users/userB/devices/dev2').set(getValidDevice('dev2', 'userB'));
+    const approved = getValidPairingSession('sess-appr', 'userA', 'dev1');
+    approved.status = 'approved';
+    approved.targetUserId = 'userB';
+    approved.targetDeviceId = 'dev2';
+    approved.targetDeviceName = 'Station-Beta';
+    approved.approvedAt = new Date();
+    await context.firestore().doc('pairingSessions/sess-appr').set(approved);
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(userCDb.doc('pairingSessions/sess-appr').update({
+    status: 'completed',
+    completedAt: new Date()
+  }));
+});
+
+test('56. Pairing: Initiator User A can complete approved session', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('users/userB/devices/dev2').set(getValidDevice('dev2', 'userB'));
+    const approved = getValidPairingSession('sess-comp', 'userA', 'dev1');
+    approved.status = 'approved';
+    approved.targetUserId = 'userB';
+    approved.targetDeviceId = 'dev2';
+    approved.targetDeviceName = 'Station-Beta';
+    approved.approvedAt = new Date();
+    await context.firestore().doc('pairingSessions/sess-comp').set(approved);
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('pairingSessions/sess-comp').update({
+    status: 'completed',
+    completedAt: new Date()
+  }));
+});
+
+test('57. Pairing: Completed session cannot be completed again or modified (terminal state)', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('users/userB/devices/dev2').set(getValidDevice('dev2', 'userB'));
+    const completed = getValidPairingSession('sess-term', 'userA', 'dev1');
+    completed.status = 'completed';
+    completed.targetUserId = 'userB';
+    completed.targetDeviceId = 'dev2';
+    completed.completedAt = new Date();
+    await context.firestore().doc('pairingSessions/sess-term').set(completed);
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('pairingSessions/sess-term').update({
+    status: 'completed',
+    completedAt: new Date()
+  }));
+});
+
+test('58. Pairing: Direct deletion of pairing session is blocked', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+    await context.firestore().doc('pairingSessions/sess-del').set(getValidPairingSession('sess-del', 'userA', 'dev1'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('pairingSessions/sess-del').delete());
+});
+

@@ -27,8 +27,29 @@ export const updateDeviceSchema = z.object({
   isRevoked: z.boolean().optional()
 });
 
+export const pairingCodeSchema = z.string().trim().regex(/^CL-[A-Z0-9]{6}$/i, 'Pairing code must be in the format CL-XXXXXX');
+
 export const createPairingSchema = z.object({
-  sourceDeviceId: z.string().uuid()
+  initiatorDeviceId: z.string().uuid().optional(),
+  sourceDeviceId: z.string().uuid().optional(),
+  initiatorDeviceName: z.string().trim().min(1).max(MAX_DEVICE_NAME_LENGTH).optional()
+}).refine(data => Boolean(data.initiatorDeviceId || data.sourceDeviceId), {
+  message: 'Device ID is required'
+});
+
+export const approvePairingSchema = z.object({
+  sessionId: z.string().uuid(),
+  targetDeviceId: z.string().uuid(),
+  targetDeviceName: z.string().trim().min(1).max(MAX_DEVICE_NAME_LENGTH)
+});
+
+export const qrPairingPayloadSchema = z.object({
+  v: z.literal(1),
+  sid: z.string().uuid(),
+  code: z.string().trim().min(6).max(16),
+  initDev: z.string().uuid(),
+  exp: z.number().positive(),
+  ch: z.string().min(16).max(128)
 });
 
 export const scanPairingSchema = z.object({
