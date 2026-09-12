@@ -1,8 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 
-const isDev = process.env.NODE_ENV !== 'production';
-
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -18,9 +16,23 @@ function createWindow() {
     },
   });
 
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('[Electron] Renderer loaded successfully');
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.error(`[Electron] Renderer failed to load: ${errorDescription} (${errorCode})`);
+  });
+
+  mainWindow.webContents.on('console-message', (_event, level, message) => {
+    console.log(`[Renderer Console level ${level}]: ${message}`);
+  });
+
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.loadURL('http://localhost:5173').catch(() => {
+      console.log('[Electron] Dev server not reachable, falling back to dist-renderer');
+      mainWindow.loadFile(path.join(__dirname, '../dist-renderer/index.html'));
+    });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist-renderer/index.html'));
   }

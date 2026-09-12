@@ -1,8 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import * as os from 'os';
 
 contextBridge.exposeInMainWorld('comiclink', {
-  platform: os.platform(),
+  platform: process.platform,
   version: process.versions.electron,
   window: {
     minimize: () => ipcRenderer.send('window-minimize'),

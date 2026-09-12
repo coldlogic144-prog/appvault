@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc --build",
     "lint": "eslint . --ext .ts,.tsx",
-    "test": "node --test tests/unit/*.test.mjs",
+    "test": "node --test tests/unit/*.test.mjs tests/security-rules/*.test.mjs",
     "dev": "scripts\\dev.cmd",
     "emulators": "scripts\\emulators.cmd",
     "build": "npm run typecheck && npm run build --workspaces --if-present",

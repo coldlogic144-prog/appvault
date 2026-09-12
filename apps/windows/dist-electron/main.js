@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const path_1 = __importDefault(require("path"));
-const isDev = process.env.NODE_ENV !== 'production';
 function createWindow() {
     const mainWindow = new electron_1.BrowserWindow({
         width: 1200,
@@ -20,9 +19,20 @@ function createWindow() {
             preload: path_1.default.join(__dirname, 'preload.js'),
         },
     });
-    if (isDev) {
-        mainWindow.loadURL('http://localhost:5173');
-        mainWindow.webContents.openDevTools();
+    mainWindow.webContents.on('did-finish-load', () => {
+        console.log('[Electron] Renderer loaded successfully');
+    });
+    mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+        console.error(`[Electron] Renderer failed to load: ${errorDescription} (${errorCode})`);
+    });
+    mainWindow.webContents.on('console-message', (_event, level, message) => {
+        console.log(`[Renderer Console level ${level}]: ${message}`);
+    });
+    if (process.env.NODE_ENV === 'development') {
+        mainWindow.loadURL('http://localhost:5173').catch(() => {
+            console.log('[Electron] Dev server not reachable, falling back to dist-renderer');
+            mainWindow.loadFile(path_1.default.join(__dirname, '../dist-renderer/index.html'));
+        });
     }
     else {
         mainWindow.loadFile(path_1.default.join(__dirname, '../dist-renderer/index.html'));
