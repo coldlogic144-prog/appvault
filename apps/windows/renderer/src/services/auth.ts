@@ -8,10 +8,10 @@ import {
   User as FirebaseUser,
   NextOrObserver
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { ERROR_CODES, createAppError } from '@comiclink/error-codes';
-import type { UserProfile } from '@comiclink/shared-types';
+import type { UserAccount, PublicProfile } from '@comiclink/shared-types';
 
 export function mapFirebaseAuthError(errorCode: string): { code: string; message: string } {
   switch (errorCode) {
@@ -37,7 +37,7 @@ export async function registerWithEmail(
   email: string,
   pass: string,
   displayName: string
-): Promise<{ user: FirebaseUser; profile: UserProfile }> {
+): Promise<{ user: FirebaseUser; account: UserAccount; profile: PublicProfile }> {
   if (!auth || !db) {
     throw createAppError(ERROR_CODES.AUTH.CONFIGURATION_ERROR, 'Firebase Auth is not configured.');
   }
@@ -49,28 +49,37 @@ export async function registerWithEmail(
     // Update Firebase Auth profile display name
     await updateProfile(user, { displayName });
 
-    // Client only writes safe, user-owned initial profile fields.
-    // Role, status, and system counters are server-governed.
-    const initialProfile: UserProfile = {
+    // 1. Private User Account: users/{uid}
+    const initialAccount: UserAccount = {
       uid: user.uid,
       email: user.email || email,
+      emailVerified: user.emailVerified,
+      blockedUsers: [],
+      clipboardSyncEnabled: true,
+      deviceCount: 0,
+      role: 'user',
+      accountStatus: 'active',
+      createdAt: serverTimestamp() as any,
+      updatedAt: serverTimestamp() as any
+    };
+
+    // 2. Public Presentation Profile: publicProfiles/{uid}
+    const initialProfile: PublicProfile = {
+      uid: user.uid,
       displayName: displayName.trim(),
       photoURL: null,
       bio: '',
-      status: 'active',
-      role: 'user',
-      emailVerified: user.emailVerified,
-      clipboardSyncEnabled: true,
-      blockedUsers: [],
-      deviceCount: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      presenceStatus: 'online',
+      updatedAt: serverTimestamp() as any
     };
 
-    const userRef = doc(db, 'users', user.uid);
-    await setDoc(userRef, initialProfile);
+    // Write both documents in a batch
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'users', user.uid), initialAccount);
+    batch.set(doc(db, 'publicProfiles', user.uid), initialProfile);
+    await batch.commit();
 
-    return { user, profile: initialProfile };
+    return { user, account: initialAccount, profile: initialProfile };
   } catch (error: any) {
     const mapped = mapFirebaseAuthError(error.code || '');
     throw createAppError(mapped.code, mapped.message, error);
@@ -123,10 +132,18 @@ export function observeAuthState(
   return onAuthStateChanged(auth, observer);
 }
 
-export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+export async function getUserAccount(uid: string): Promise<UserAccount | null> {
   if (!db) return null;
   const userRef = doc(db, 'users', uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) return null;
-  return snap.data() as UserProfile;
+  return snap.data() as UserAccount;
+}
+
+export async function getPublicProfile(uid: string): Promise<PublicProfile | null> {
+  if (!db) return null;
+  const profileRef = doc(db, 'publicProfiles', uid);
+  const snap = await getDoc(profileRef);
+  if (!snap.exists()) return null;
+  return snap.data() as PublicProfile;
 }

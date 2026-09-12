@@ -40,6 +40,7 @@ test('Firestore Security Rules: Comprehensive coverage of all 14 schema collecti
   const content = fs.readFileSync(firestoreRulesPath, 'utf8');
   const requiredCollections = [
     'users/{uid}',
+    'publicProfiles/{uid}',
     'devices/{deviceId}',
     'pairingSessions/{sessionId}',
     'pairedDevices/{pairId}',

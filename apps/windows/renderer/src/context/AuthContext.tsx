@@ -1,19 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import type { UserProfile } from '@comiclink/shared-types';
+import type { UserAccount, PublicProfile } from '@comiclink/shared-types';
 import {
   observeAuthState,
   loginWithEmail,
   registerWithEmail,
   logout as authLogout,
   sendPasswordReset as authReset,
-  getUserProfile
+  getUserAccount,
+  getPublicProfile
 } from '../services/auth';
 import { isFirebaseConfigValid } from '../services/firebase';
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
-  userProfile: UserProfile | null;
+  userAccount: UserAccount | null;
+  publicProfile: PublicProfile | null;
   loading: boolean;
   error: string | null;
   login: (email: string, pass: string) => Promise<void>;
@@ -28,9 +30,23 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userAccount, setUserAccount] = useState<UserAccount | null>(null);
+  const [publicProfile, setPublicProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const loadUserData = async (uid: string) => {
+    try {
+      const [account, profile] = await Promise.all([
+        getUserAccount(uid),
+        getPublicProfile(uid)
+      ]);
+      setUserAccount(account);
+      setPublicProfile(profile);
+    } catch (err: any) {
+      console.error('[AuthContext] Error fetching user documents:', err);
+    }
+  };
 
   useEffect(() => {
     if (!isFirebaseConfigValid) {
@@ -41,14 +57,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = observeAuthState(async (user) => {
       setCurrentUser(user);
       if (user) {
-        try {
-          const profile = await getUserProfile(user.uid);
-          setUserProfile(profile);
-        } catch (err: any) {
-          console.error('[AuthContext] Error fetching profile:', err);
-        }
+        await loadUserData(user.uid);
       } else {
-        setUserProfile(null);
+        setUserAccount(null);
+        setPublicProfile(null);
       }
       setLoading(false);
     });
@@ -62,8 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const user = await loginWithEmail(email, pass);
       setCurrentUser(user);
-      const profile = await getUserProfile(user.uid);
-      setUserProfile(profile);
+      await loadUserData(user.uid);
     } catch (err: any) {
       setError(err.message || 'Login failed');
       throw err;
@@ -76,9 +87,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     setLoading(true);
     try {
-      const { user, profile } = await registerWithEmail(email, pass, displayName);
+      const { user, account, profile } = await registerWithEmail(email, pass, displayName);
       setCurrentUser(user);
-      setUserProfile(profile);
+      setUserAccount(account);
+      setPublicProfile(profile);
     } catch (err: any) {
       setError(err.message || 'Registration failed');
       throw err;
@@ -93,7 +105,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await authLogout();
       setCurrentUser(null);
-      setUserProfile(null);
+      setUserAccount(null);
+      setPublicProfile(null);
     } finally {
       setLoading(false);
     }
@@ -111,8 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (currentUser) {
-      const profile = await getUserProfile(currentUser.uid);
-      setUserProfile(profile);
+      await loadUserData(currentUser.uid);
     }
   };
 
@@ -122,7 +134,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         currentUser,
-        userProfile,
+        userAccount,
+        publicProfile,
         loading,
         error,
         login,

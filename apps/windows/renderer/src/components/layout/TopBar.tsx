@@ -4,9 +4,9 @@ import { isEmulatorMode } from '../../services/firebase';
 import ComicButton from '../ui/ComicButton';
 
 export default function TopBar() {
-  const { currentUser, userProfile, logout } = useAuth();
+  const { currentUser, userAccount, publicProfile, logout } = useAuth();
 
-  const displayName = userProfile?.displayName || currentUser?.displayName || currentUser?.email || 'AGENT';
+  const displayName = publicProfile?.displayName || currentUser?.displayName || currentUser?.email || 'AGENT';
 
   return (
     <header className="h-16 bg-panel border-b-4 border-ink flex items-center justify-between px-6 z-10">
@@ -28,9 +28,9 @@ export default function TopBar() {
           </div>
           <div className="hidden sm:flex flex-col">
             <span className="font-bold text-sm text-text leading-tight">{displayName}</span>
-            {userProfile?.role && (
+            {userAccount?.role && (
               <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider">
-                {userProfile.role}
+                {userAccount.role}
               </span>
             )}
           </div>

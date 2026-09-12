@@ -1,8 +1,17 @@
-export const USER_STATUS = {
+export const ACCOUNT_STATUS = {
   ACTIVE: 'active',
   SUSPENDED: 'suspended',
   DELETED: 'deleted'
 } as const;
+
+export const PRESENCE_STATUS = {
+  ONLINE: 'online',
+  OFFLINE: 'offline',
+  AWAY: 'away'
+} as const;
+
+// Backward-compatibility alias
+export const USER_STATUS = ACCOUNT_STATUS;
 
 export const USER_ROLE = {
   USER: 'user',

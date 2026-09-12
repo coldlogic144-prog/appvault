@@ -11,24 +11,34 @@ exports.authOnCreate = (0, identity_1.beforeUserCreated)(async (event) => {
     try {
         const userDoc = {
             uid,
-            email: user.email || null,
-            displayName: user.displayName || null,
-            photoURL: user.photoURL || null,
-            role: 'user',
-            status: 'active',
+            email: user.email || '',
+            emailVerified: user.emailVerified || false,
+            blockedUsers: [],
+            clipboardSyncEnabled: true,
             deviceCount: 0,
+            role: 'user',
+            accountStatus: 'active',
             createdAt: admin_1.FieldValue.serverTimestamp(),
             updatedAt: admin_1.FieldValue.serverTimestamp(),
         };
-        await admin_1.db.collection('users').doc(uid).set(userDoc);
+        const publicProfileDoc = {
+            uid,
+            displayName: user.displayName || 'AGENT',
+            photoURL: user.photoURL || null,
+            bio: '',
+            presenceStatus: 'online',
+            updatedAt: admin_1.FieldValue.serverTimestamp(),
+        };
+        const batch = admin_1.db.batch();
+        batch.set(admin_1.db.collection('users').doc(uid), userDoc);
+        batch.set(admin_1.db.collection('publicProfiles').doc(uid), publicProfileDoc);
+        await batch.commit();
         await (0, audit_1.writeAuditLog)(uid, 'create_user_profile', 'user', uid);
-        v2_1.logger.info(`Successfully created user profile for ${uid}`);
+        v2_1.logger.info(`Successfully created user account and public profile for ${uid}`);
     }
     catch (error) {
-        v2_1.logger.error(`Error creating user profile for ${uid}`, error);
-        // Returning without throwing keeps the auth process going even if DB fails,
-        // though in production we might want to handle this differently.
+        v2_1.logger.error(`Error creating user documents for ${uid}`, error);
     }
-    return {}; // Return empty modifications
+    return {};
 });
 //# sourceMappingURL=onCreate.js.map

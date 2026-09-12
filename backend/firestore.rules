@@ -21,19 +21,45 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Users Collection
+    // ==========================================
+    // 1. Private User Account: users/{uid}
+    // ==========================================
     match /users/{uid} {
-      allow read: if isAuthenticated();
+      // Owner only: get allowed for self, list/queries denied
+      allow get: if isOwner(uid);
+      allow list: if false;
+
+      // Create: Owner-only, validates uid, role, accountStatus, initial counters, and strict field keys
       allow create: if isOwner(uid)
+                    && request.resource.data.uid == uid
                     && request.resource.data.role == 'user'
-                    && request.resource.data.status == 'active';
+                    && request.resource.data.accountStatus == 'active'
+                    && request.resource.data.deviceCount == 0
+                    && request.resource.data.email is string
+                    && request.resource.data.emailVerified is bool
+                    && request.resource.data.blockedUsers is list
+                    && request.resource.data.clipboardSyncEnabled is bool
+                    && request.resource.data.keys().hasAll(['uid', 'email', 'emailVerified', 'blockedUsers', 'clipboardSyncEnabled', 'deviceCount', 'role', 'accountStatus', 'createdAt', 'updatedAt'])
+                    && request.resource.data.keys().hasOnly(['uid', 'email', 'emailVerified', 'blockedUsers', 'clipboardSyncEnabled', 'deviceCount', 'role', 'accountStatus', 'createdAt', 'updatedAt']);
+
+      // Update: Owner-only, strictly limits client mutable fields to clipboardSyncEnabled, blockedUsers, updatedAt.
+      // All server-managed and identity fields must remain identical to resource.data.
       allow update: if isOwner(uid)
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio', 'clipboardSyncEnabled', 'updatedAt'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clipboardSyncEnabled', 'blockedUsers', 'updatedAt'])
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.email == resource.data.email
                     && request.resource.data.role == resource.data.role
-                    && request.resource.data.status == resource.data.status
-                    && request.resource.data.createdAt == resource.data.createdAt;
-      
-      // User Devices
+                    && request.resource.data.accountStatus == resource.data.accountStatus
+                    && request.resource.data.deviceCount == resource.data.deviceCount
+                    && request.resource.data.emailVerified == resource.data.emailVerified
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.blockedUsers is list
+                    && request.resource.data.clipboardSyncEnabled is bool;
+
+      // Direct client deletion is forbidden (managed via Cloud Functions)
+      allow delete: if false;
+
+      // User Devices Subcollection
       match /devices/{deviceId} {
         allow read: if isOwner(uid);
         allow create: if isOwner(uid) 
@@ -43,6 +69,38 @@ service cloud.firestore {
                       && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActiveAt', 'fcmToken']);
         allow delete: if false; // Soft delete or function only
       }
+    }
+
+    // ==========================================
+    // 2. Public Presentation Profiles: publicProfiles/{uid}
+    // ==========================================
+    match /publicProfiles/{uid} {
+      // Authenticated members can read public profile presentation cards
+      allow read: if isAuthenticated();
+
+      // Create: Owner-only, validates uid, presenceStatus, string lengths, and prevents field injection
+      allow create: if isOwner(uid)
+                    && request.resource.data.uid == uid
+                    && request.resource.data.displayName is string
+                    && request.resource.data.displayName.size() > 0
+                    && request.resource.data.displayName.size() <= 50
+                    && (request.resource.data.bio == null || (request.resource.data.bio is string && request.resource.data.bio.size() <= 500))
+                    && (request.resource.data.presenceStatus in ['online', 'offline', 'away'])
+                    && request.resource.data.keys().hasAll(['uid', 'displayName', 'presenceStatus', 'updatedAt'])
+                    && request.resource.data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'bio', 'presenceStatus', 'updatedAt']);
+
+      // Update: Owner-only, limits updates to presentation fields, enforces string lengths and presence enum
+      allow update: if isOwner(uid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio', 'presenceStatus', 'updatedAt'])
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.displayName is string
+                    && request.resource.data.displayName.size() > 0
+                    && request.resource.data.displayName.size() <= 50
+                    && (request.resource.data.bio == null || (request.resource.data.bio is string && request.resource.data.bio.size() <= 500))
+                    && (request.resource.data.presenceStatus in ['online', 'offline', 'away']);
+
+      // Deletion is server-controlled
+      allow delete: if false;
     }
 
     // Pairing Sessions (Cloud Functions only)

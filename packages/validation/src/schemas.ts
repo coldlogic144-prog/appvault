@@ -70,10 +70,19 @@ export const createReportSchema = z.object({
   details: z.string().max(MAX_REPORT_DETAILS_LENGTH).optional()
 });
 
-export const updateProfileSchema = z.object({
+export const updatePublicProfileSchema = z.object({
   displayName: displayNameSchema.optional(),
   photoURL: z.string().url().nullable().optional(),
   bio: bioSchema.optional(),
+  presenceStatus: z.enum(['online', 'offline', 'away']).optional()
+});
+
+export const updateUserAccountSchema = z.object({
+  clipboardSyncEnabled: z.boolean().optional(),
+  blockedUsers: z.array(z.string()).optional()
+});
+
+export const updateProfileSchema = updatePublicProfileSchema.extend({
   clipboardSyncEnabled: z.boolean().optional()
 });
 
