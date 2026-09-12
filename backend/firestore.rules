@@ -1,0 +1,153 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+    function isConversationMember(conversationId) {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberUids.hasAny([request.auth.uid]);
+    }
+    function isServerTimestamp(value) {
+      return value == request.time;
+    }
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users Collection
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid)
+                    && request.resource.data.role == 'user'
+                    && request.resource.data.status == 'active';
+      allow update: if isOwner(uid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio', 'updatedAt'])
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.status == resource.data.status
+                    && request.resource.data.createdAt == resource.data.createdAt;
+      
+      // User Devices
+      match /devices/{deviceId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) 
+                      && request.resource.data.keys().hasAll(['deviceName', 'platform', 'createdAt'])
+                      && isServerTimestamp(request.resource.data.createdAt);
+        allow update: if isOwner(uid)
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActiveAt', 'fcmToken']);
+        allow delete: if false; // Soft delete or function only
+      }
+    }
+
+    // Pairing Sessions (Cloud Functions only)
+    match /pairingSessions/{sessionId} {
+      allow read, write: if false;
+    }
+
+    // Paired Devices
+    match /pairedDevices/{pairId} {
+      allow read: if isOwner(resource.data.ownerUid);
+      allow write: if false; // Cloud Functions only
+    }
+
+    // Files Collection
+    match /files/{fileId} {
+      allow read: if isOwner(resource.data.ownerId);
+      allow create: if isOwner(request.resource.data.ownerId)
+                    && isServerTimestamp(request.resource.data.createdAt);
+      allow update: if isOwner(resource.data.ownerId)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if false; // Soft delete only
+    }
+
+    // Conversations Collection
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated() && resource.data.memberUids.hasAny([request.auth.uid]);
+      allow create: if isAuthenticated() 
+                    && request.resource.data.memberUids.hasAny([request.auth.uid])
+                    && isServerTimestamp(request.resource.data.createdAt);
+      allow update: if isAuthenticated() 
+                    && resource.data.memberUids.hasAny([request.auth.uid]);
+      
+      // Conversation Members
+      match /members/{uid} {
+        allow read: if isConversationMember(conversationId);
+        allow write: if isOwner(uid) && isConversationMember(conversationId);
+      }
+
+      // Conversation Messages
+      match /messages/{messageId} {
+        allow read: if isConversationMember(conversationId);
+        allow create: if isConversationMember(conversationId)
+                      && isOwner(request.resource.data.senderId)
+                      && isServerTimestamp(request.resource.data.createdAt);
+        allow update: if isConversationMember(conversationId)
+                      && isOwner(resource.data.senderId)
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'edited', 'editedAt']);
+        allow delete: if false; // Soft delete only
+      }
+    }
+
+    // Clipboard Items
+    match /clipboardItems/{clipboardId} {
+      allow read, delete: if isOwner(resource.data.ownerId);
+      allow create: if isOwner(request.resource.data.ownerId)
+                    && isServerTimestamp(request.resource.data.createdAt);
+      allow update: if isOwner(resource.data.ownerId)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'updatedAt']);
+    }
+
+    // Posts Collection
+    match /posts/{postId} {
+      allow read: if isAuthenticated() && (resource.data.visibility == 'public' || isOwner(resource.data.authorId));
+      allow create: if isOwner(request.resource.data.authorId)
+                    && isServerTimestamp(request.resource.data.createdAt);
+      allow update: if isOwner(resource.data.authorId)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'visibility', 'updatedAt']);
+      allow delete: if false; // Soft delete or function only
+
+      // Post Comments
+      match /comments/{commentId} {
+        allow read: if isAuthenticated(); // Assuming public posts, access check could be more robust
+        allow create: if isOwner(request.resource.data.authorId)
+                      && isServerTimestamp(request.resource.data.createdAt);
+        allow update: if isOwner(resource.data.authorId)
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'updatedAt']);
+        allow delete: if false; // Soft delete
+      }
+
+      // Post Likes
+      match /likes/{uid} {
+        allow read: if isAuthenticated();
+        allow create, delete: if isOwner(uid);
+      }
+    }
+
+    // Reports Collection
+    match /reports/{reportId} {
+      allow read: if isOwner(resource.data.reporterId);
+      allow create: if isOwner(request.resource.data.reporterId)
+                    && isServerTimestamp(request.resource.data.createdAt);
+      allow update, delete: if false; // Moderators/Functions only
+    }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      allow read: if isOwner(resource.data.recipientId);
+      allow create, delete: if false; // Functions only
+      allow update: if isOwner(resource.data.recipientId)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+    }
+
+    // Audit Logs (Cloud Functions only)
+    match /auditLogs/{logId} {
+      allow read, write: if false;
+    }
+  }
+}

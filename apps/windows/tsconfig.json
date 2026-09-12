@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "rootDir": "renderer/src",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["renderer/src", "renderer/vite-env.d.ts"],
+  "references": [
+    { "path": "../../packages/shared-types" },
+    { "path": "../../packages/constants" },
+    { "path": "../../packages/error-codes" },
+    { "path": "../../packages/validation" }
+  ]
+}

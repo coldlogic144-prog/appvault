@@ -1,0 +1,24 @@
+{
+  "name": "comiclink",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-device communication and file-sharing platform with a comic-inspired UI",
+  "workspaces": [
+    "packages/*",
+    "apps/windows",
+    "backend/functions"
+  ],
+  "scripts": {
+    "typecheck": "tsc --build",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "node --test tests/unit/*.test.mjs",
+    "dev": "scripts\\dev.cmd",
+    "emulators": "scripts\\emulators.cmd",
+    "build": "npm run typecheck && npm run build --workspaces --if-present",
+    "clean": "rimraf **/dist **/node_modules/.cache"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
