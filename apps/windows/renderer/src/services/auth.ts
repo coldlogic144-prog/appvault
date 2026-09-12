@@ -8,10 +8,10 @@ import {
   User as FirebaseUser,
   NextOrObserver
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { ERROR_CODES, createAppError } from '@comiclink/error-codes';
-import type { UserAccount, PublicProfile } from '@comiclink/shared-types';
+import type { UserAccount, PublicProfile, PublicProfileUpdate, UserAccountUpdate } from '@comiclink/shared-types';
 
 export function mapFirebaseAuthError(errorCode: string): { code: string; message: string } {
   switch (errorCode) {
@@ -146,4 +146,26 @@ export async function getPublicProfile(uid: string): Promise<PublicProfile | nul
   const snap = await getDoc(profileRef);
   if (!snap.exists()) return null;
   return snap.data() as PublicProfile;
+}
+
+export async function updatePublicProfile(uid: string, data: PublicProfileUpdate): Promise<void> {
+  if (!db) {
+    throw createAppError(ERROR_CODES.AUTH.CONFIGURATION_ERROR, 'Firestore database is not configured.');
+  }
+  const profileRef = doc(db, 'publicProfiles', uid);
+  await updateDoc(profileRef, {
+    ...data,
+    updatedAt: serverTimestamp()
+  });
+}
+
+export async function updateUserAccount(uid: string, data: UserAccountUpdate): Promise<void> {
+  if (!db) {
+    throw createAppError(ERROR_CODES.AUTH.CONFIGURATION_ERROR, 'Firestore database is not configured.');
+  }
+  const userRef = doc(db, 'users', uid);
+  await updateDoc(userRef, {
+    ...data,
+    updatedAt: serverTimestamp()
+  });
 }

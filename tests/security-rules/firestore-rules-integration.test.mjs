@@ -291,3 +291,141 @@ test('26. Public profiles: User A cannot delete the public profile', async () =>
   const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
   await assertFails(userADb.doc('publicProfiles/userA').delete());
 });
+
+// ============================================================================
+// DEVICE SUBCOLLECTION TESTS (27 - 40)
+// ============================================================================
+
+function getValidDevice(deviceId = 'dev1', ownerId = 'userA') {
+  return {
+    deviceId,
+    ownerId,
+    deviceName: 'HQ-Terminal-Alpha',
+    platform: 'windows',
+    appVersion: '0.1.0',
+    createdAt: new Date(),
+    lastSeenAt: new Date(),
+    isRevoked: false,
+    revokedAt: null
+  };
+}
+
+test('27. Device: Unauthenticated read is rejected', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+  await assertFails(unauthDb.doc('users/userA/devices/dev1').get());
+});
+
+test('28. Device: User A can read own device', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('users/userA/devices/dev1').get());
+});
+
+test('29. Device: User A can list own devices', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.collection('users/userA/devices').get());
+});
+
+test('30. Device: User B cannot read User A device', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertFails(userBDb.doc('users/userA/devices/dev1').get());
+});
+
+test('31. Device: User B cannot list User A devices', async () => {
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertFails(userBDb.collection('users/userA/devices').get());
+});
+
+test('32. Device: User A can register a new device with valid fields', async () => {
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA')));
+});
+
+test('33. Device: User B cannot register a device under User A', async () => {
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertFails(userBDb.doc('users/userA/devices/dev2').set(getValidDevice('dev2', 'userA')));
+});
+
+test('34. Device: User A cannot register device with mismatched deviceId or ownerId', async () => {
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const mismatchedId = { ...getValidDevice('dev1', 'userA'), deviceId: 'wrongId' };
+  const mismatchedOwner = { ...getValidDevice('dev1', 'userA'), ownerId: 'userB' };
+
+  await assertFails(userADb.doc('users/userA/devices/dev1').set(mismatchedId));
+  await assertFails(userADb.doc('users/userA/devices/dev1').set(mismatchedOwner));
+});
+
+test('35. Device: User A cannot register device initially marked isRevoked: true', async () => {
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const alreadyRevoked = { ...getValidDevice('dev1', 'userA'), isRevoked: true };
+  await assertFails(userADb.doc('users/userA/devices/dev1').set(alreadyRevoked));
+});
+
+test('36. Device: User A can update deviceName and lastSeenAt on own device', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('users/userA/devices/dev1').update({
+    deviceName: 'Batcave-Workstation-1',
+    lastSeenAt: new Date()
+  }));
+});
+
+test('37. Device: User A can revoke own device', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('users/userA/devices/dev1').update({
+    isRevoked: true,
+    revokedAt: new Date()
+  }));
+});
+
+test('38. Device: User A cannot change ownerId, platform, or createdAt on update', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('users/userA/devices/dev1').update({ ownerId: 'userB' }));
+  await assertFails(userADb.doc('users/userA/devices/dev1').update({ platform: 'android' }));
+  await assertFails(userADb.doc('users/userA/devices/dev1').update({ createdAt: new Date() }));
+});
+
+test('39. Device: User B cannot update or revoke User A device', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertFails(userBDb.doc('users/userA/devices/dev1').update({ deviceName: 'Hacked-Name' }));
+  await assertFails(userBDb.doc('users/userA/devices/dev1').update({ isRevoked: true }));
+});
+
+test('40. Device: User A cannot delete device directly', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('users/userA/devices/dev1').delete());
+});

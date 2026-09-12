@@ -53,8 +53,9 @@ test('Firestore Static Rules Check: Device registration rules enforce ownership 
   const content = fs.readFileSync(firestoreRulesPath, 'utf8');
 
   assert.ok(content.includes('match /devices/{deviceId}'), 'Must match user subcollection devices/{deviceId}');
-  assert.ok(content.includes("allow read: if isOwner(uid);"), 'Device read requires owner');
+  assert.ok(content.includes("allow get, list: if isOwner(uid);"), 'Device get and list require owner');
   assert.ok(content.includes("allow create: if isOwner(uid)"), 'Device create requires owner');
-  assert.ok(content.includes("keys().hasAll(['deviceName', 'platform', 'createdAt'])"), 'Device must include required keys');
+  assert.ok(content.includes("request.resource.data.deviceId == deviceId"), 'Device ID must match path ID');
+  assert.ok(content.includes("request.resource.data.ownerId == uid"), 'Owner ID must match auth UID');
   assert.ok(content.includes("allow delete: if false;"), 'Direct client device deletion is blocked');
 });

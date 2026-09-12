@@ -12,7 +12,7 @@
     "typecheck": "tsc --build",
     "lint": "eslint . --ext .ts,.tsx",
     "test": "node --test tests/unit/*.test.mjs tests/security-rules/rules.test.mjs tests/security-rules/emulator-auth.test.mjs",
-    "test:rules": "firebase --config backend/firebase.json emulators:exec --only firestore scripts/test-rules.cmd",
+    "test:rules": "firebase --config backend/firebase.json emulators:exec --only firestore \"scripts\\test-rules.cmd\"",
     "dev": "scripts\\dev.cmd",
     "emulators": "scripts\\emulators.cmd",
     "build": "npm run typecheck && npm run build --workspaces --if-present",

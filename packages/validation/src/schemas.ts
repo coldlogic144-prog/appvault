@@ -16,9 +16,15 @@ export const displayNameSchema = z.string().trim().min(1).max(MAX_DISPLAY_NAME_L
 export const bioSchema = z.string().max(MAX_BIO_LENGTH);
 
 export const registerDeviceSchema = z.object({
+  deviceId: z.string().uuid().optional(),
   deviceName: z.string().trim().min(1).max(MAX_DEVICE_NAME_LENGTH),
   platform: z.enum(['windows', 'android', 'web']),
   appVersion: z.string().regex(/^\d+\.\d+\.\d+/)
+});
+
+export const updateDeviceSchema = z.object({
+  deviceName: z.string().trim().min(1).max(MAX_DEVICE_NAME_LENGTH).optional(),
+  isRevoked: z.boolean().optional()
 });
 
 export const createPairingSchema = z.object({

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import type { UserAccount, PublicProfile } from '@comiclink/shared-types';
+import type { UserAccount, PublicProfile, PublicProfileUpdate, UserAccountUpdate } from '@comiclink/shared-types';
 import {
   observeAuthState,
   loginWithEmail,
@@ -8,8 +8,11 @@ import {
   logout as authLogout,
   sendPasswordReset as authReset,
   getUserAccount,
-  getPublicProfile
+  getPublicProfile,
+  updatePublicProfile,
+  updateUserAccount
 } from '../services/auth';
+import { registerCurrentDevice, getLocalDeviceId } from '../services/device';
 import { isFirebaseConfigValid } from '../services/firebase';
 
 interface AuthContextType {
@@ -18,12 +21,15 @@ interface AuthContextType {
   publicProfile: PublicProfile | null;
   loading: boolean;
   error: string | null;
+  currentDeviceId: string;
   login: (email: string, pass: string) => Promise<void>;
   register: (email: string, pass: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
   sendReset: (email: string) => Promise<void>;
   clearError: () => void;
   refreshProfile: () => Promise<void>;
+  updateProfile: (data: PublicProfileUpdate) => Promise<void>;
+  updateAccount: (data: UserAccountUpdate) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -34,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [publicProfile, setPublicProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const currentDeviceId = getLocalDeviceId();
 
   const loadUserData = async (uid: string) => {
     try {
@@ -57,7 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = observeAuthState(async (user) => {
       setCurrentUser(user);
       if (user) {
-        await loadUserData(user.uid);
+        await Promise.allSettled([
+          loadUserData(user.uid),
+          registerCurrentDevice(user.uid)
+        ]);
       } else {
         setUserAccount(null);
         setPublicProfile(null);
@@ -74,7 +84,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const user = await loginWithEmail(email, pass);
       setCurrentUser(user);
-      await loadUserData(user.uid);
+      await Promise.allSettled([
+        loadUserData(user.uid),
+        registerCurrentDevice(user.uid)
+      ]);
     } catch (err: any) {
       setError(err.message || 'Login failed');
       throw err;
@@ -91,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(user);
       setUserAccount(account);
       setPublicProfile(profile);
+      await registerCurrentDevice(user.uid).catch((e) => console.warn('[AuthContext] Device registration warning:', e));
     } catch (err: any) {
       setError(err.message || 'Registration failed');
       throw err;
@@ -128,6 +142,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateProfile = async (data: PublicProfileUpdate) => {
+    if (!currentUser) throw new Error('Not authenticated');
+    setError(null);
+    try {
+      await updatePublicProfile(currentUser.uid, data);
+      setPublicProfile((prev) => prev ? { ...prev, ...data } : null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update public profile');
+      throw err;
+    }
+  };
+
+  const updateAccount = async (data: UserAccountUpdate) => {
+    if (!currentUser) throw new Error('Not authenticated');
+    setError(null);
+    try {
+      await updateUserAccount(currentUser.uid, data);
+      setUserAccount((prev) => prev ? { ...prev, ...data } : null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update account preferences');
+      throw err;
+    }
+  };
+
   const clearError = () => setError(null);
 
   return (
@@ -138,12 +176,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         publicProfile,
         loading,
         error,
+        currentDeviceId,
         login,
         register,
         logout,
         sendReset,
         clearError,
-        refreshProfile
+        refreshProfile,
+        updateProfile,
+        updateAccount
       }}
     >
       {children}
