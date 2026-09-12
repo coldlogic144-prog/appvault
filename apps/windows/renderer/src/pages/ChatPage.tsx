@@ -8,9 +8,11 @@ import { getPublicProfile } from '../services/auth';
 import {
   getOrCreateConversation,
   sendChatMessage,
-  listenToConversationMessages
+  listenToConversationMessages,
+  listenToUserConversations,
+  getDeterministicConversationId
 } from '../services/chat';
-import type { PairedDevice, ChatMessage } from '@comiclink/shared-types';
+import type { PairedDevice, ChatMessage, Conversation } from '@comiclink/shared-types';
 import {
   MessageSquare,
   Send,
@@ -37,6 +39,7 @@ export default function ChatPage() {
   const [selectedContact, setSelectedContact] = useState<PairedContact | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversationsMap, setConversationsMap] = useState<Record<string, Conversation>>({});
 
   const [messageText, setMessageText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -112,6 +115,27 @@ export default function ChatPage() {
 
   useEffect(() => {
     loadContacts();
+  }, [currentUser]);
+
+  // Realtime subscription to conversations list with required query constraint:
+  // where("participants", "array-contains", currentUser.uid)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const unsubscribe = listenToUserConversations(
+      (convList) => {
+        const map: Record<string, Conversation> = {};
+        for (const c of convList) {
+          map[c.conversationId] = c;
+        }
+        setConversationsMap(map);
+      },
+      (err) => {
+        console.warn('[ChatPage] Error listening to user conversations:', err);
+      }
+    );
+
+    return () => unsubscribe();
   }, [currentUser]);
 
   // Select contact & initiate/retrieve conversation
@@ -267,6 +291,17 @@ export default function ChatPage() {
                     <div className="text-xs text-text-muted truncate">
                       Station: {contact.deviceName}
                     </div>
+                    {(() => {
+                      if (!currentUser) return null;
+                      const convId = getDeterministicConversationId(currentUser.uid, contact.peerUid);
+                      const conv = conversationsMap[convId];
+                      if (!conv || !conv.lastMessageText) return null;
+                      return (
+                        <div className="text-[11px] text-accent-blue/80 truncate italic mt-0.5">
+                          "{conv.lastMessageText}"
+                        </div>
+                      );
+                    })()}
                   </button>
                 );
               })

@@ -351,15 +351,16 @@ service cloud.firestore {
       function isParticipant() {
         return isAuthenticated() && (
           resource.data.participantA == request.auth.uid ||
-          resource.data.participantB == request.auth.uid
+          resource.data.participantB == request.auth.uid ||
+          resource.data.participants.hasAny([request.auth.uid])
         );
       }
 
-      // Read: Allowed only for conversation participants
+      // Read: Allowed ONLY for conversation participants (single get and scoped list queries)
       allow get: if isParticipant();
-      allow list: if isAuthenticated();
+      allow list: if isAuthenticated() && resource.data.participants.hasAny([request.auth.uid]);
 
-      // Create: Enforce deterministic ID, exactly 2 sorted participants, pair validation
+      // Create: Enforce deterministic ID, exactly 2 sorted participants, strict dual-participant active pair validation
       allow create: if isAuthenticated()
                     && request.resource.data.conversationId == conversationId
                     && request.resource.data.participantA is string
@@ -372,9 +373,8 @@ service cloud.firestore {
                     && exists(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId))
                     && get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.status == 'active'
                     && (
-                      (get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.ownerUid in request.resource.data.participants) ||
-                      (get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.userA in request.resource.data.participants) ||
-                      (get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.userB in request.resource.data.participants)
+                      (get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.userA == request.resource.data.participantA && get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.userB == request.resource.data.participantB) ||
+                      (get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.userA == request.resource.data.participantB && get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.userB == request.resource.data.participantA)
                     )
                     && request.resource.data.createdAt is timestamp
                     && request.resource.data.updatedAt is timestamp

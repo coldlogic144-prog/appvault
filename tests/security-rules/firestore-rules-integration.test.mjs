@@ -1204,5 +1204,107 @@ test('93. Chat: Messages cannot be modified or deleted directly', async () => {
   await assertFails(userADb.doc('conversations/userA_userB/messages/msg1').delete());
 });
 
+test('94. Chat: Creation fails if pairId belongs to a pairing with a different participant (mismatched pairing)', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    // dev1_dev2 is active between userA and userB
+    await context.firestore().doc('pairedDevices/dev1_dev2').set(getValidPairedRecord('dev1_dev2', 'userA', 'userB', 'active'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  // userA tries to create a conversation with userC using the A-B pairing
+  await assertFails(userADb.doc('conversations/userA_userC').set(getValidConversation('userA', 'userC', 'dev1_dev2')));
+});
+
+test('95. Chat: User A can query conversations filtered by participants array-contains userA', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('pairedDevices/pair_ab').set(getValidPairedRecord('pair_ab', 'userA', 'userB', 'active'));
+    await context.firestore().doc('pairedDevices/pair_ad').set(getValidPairedRecord('pair_ad', 'userA', 'userD', 'active'));
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'pair_ab'));
+    await context.firestore().doc('conversations/userA_userD').set(getValidConversation('userA', 'userD', 'pair_ad'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const snap = await assertSucceeds(
+    userADb.collection('conversations').where('participants', 'array-contains', 'userA').get()
+  );
+  assert.equal(snap.docs.length, 2);
+});
+
+test('96. Chat: User B can query conversations filtered by participants array-contains userB', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('pairedDevices/pair_ab').set(getValidPairedRecord('pair_ab', 'userA', 'userB', 'active'));
+    await context.firestore().doc('pairedDevices/pair_ad').set(getValidPairedRecord('pair_ad', 'userA', 'userD', 'active'));
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'pair_ab'));
+    await context.firestore().doc('conversations/userA_userD').set(getValidConversation('userA', 'userD', 'pair_ad'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  const snap = await assertSucceeds(
+    userBDb.collection('conversations').where('participants', 'array-contains', 'userB').get()
+  );
+  assert.equal(snap.docs.length, 1);
+  assert.equal(snap.docs[0].id, 'userA_userB');
+});
+
+test('97. Chat: User C cannot execute query for conversations with array-contains userA', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(
+    userCDb.collection('conversations').where('participants', 'array-contains', 'userA').get()
+  );
+});
+
+test('98. Chat: User C querying own conversations does not discover or receive User A / User B conversation or previews', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const conv = getValidConversation('userA', 'userB', 'dev1_dev2');
+    conv.lastMessageText = 'Classified secret mission transmission';
+    await context.firestore().doc('conversations/userA_userB').set(conv);
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  const snap = await assertSucceeds(
+    userCDb.collection('conversations').where('participants', 'array-contains', 'userC').get()
+  );
+  assert.equal(snap.docs.length, 0);
+});
+
+test('99. Chat: Unrestricted conversation collection query is denied for all authenticated users', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+
+  await assertFails(userADb.collection('conversations').get());
+  await assertFails(userCDb.collection('conversations').get());
+});
+
+test('100. Chat: Unauthenticated user cannot list or query conversations', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+  await assertFails(unauthDb.collection('conversations').get());
+  await assertFails(unauthDb.collection('conversations').where('participants', 'array-contains', 'userA').get());
+});
+
+test('101. Chat: Non-participant cannot query messages subcollection of conversation', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+    await context.firestore().doc('conversations/userA_userB/messages/m1').set(
+      getValidChatMessage('userA_userB', 'm1', 'userA', 'Direct secret dispatch')
+    );
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(userCDb.collection('conversations/userA_userB/messages').get());
+});
+
+
 
 
