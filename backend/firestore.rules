@@ -28,7 +28,7 @@ service cloud.firestore {
                     && request.resource.data.role == 'user'
                     && request.resource.data.status == 'active';
       allow update: if isOwner(uid)
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio', 'updatedAt'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio', 'clipboardSyncEnabled', 'updatedAt'])
                     && request.resource.data.role == resource.data.role
                     && request.resource.data.status == resource.data.status
                     && request.resource.data.createdAt == resource.data.createdAt;

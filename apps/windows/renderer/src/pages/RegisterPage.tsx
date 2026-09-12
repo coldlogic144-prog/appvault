@@ -4,34 +4,42 @@ import ComicPanel from '../components/ui/ComicPanel';
 import ComicButton from '../components/ui/ComicButton';
 import ComicInput from '../components/ui/ComicInput';
 import Logo from '../components/ui/Logo';
-import { LogIn, AlertCircle } from 'lucide-react';
+import { UserPlus, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { loginSchema } from '@comiclink/validation';
+import { registerSchema } from '@comiclink/validation';
 import { isEmulatorMode } from '../services/firebase';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const navigate = useNavigate();
-  const { login, error: authError, clearError } = useAuth();
+  const { register, error: authError, clearError } = useAuth();
 
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
     clearError();
 
-    const parseResult = loginSchema.safeParse({ email, password });
+    const parseResult = registerSchema.safeParse({
+      displayName,
+      email,
+      password,
+      confirmPassword
+    });
+
     if (!parseResult.success) {
-      setValidationError(parseResult.error.issues[0]?.message || 'Please check your input.');
+      setValidationError(parseResult.error.issues[0]?.message || 'Please verify your information.');
       return;
     }
 
     setLoading(true);
     try {
-      await login(email, password);
+      await register(email, password, displayName);
       navigate('/dashboard');
     } catch {
       // Error handled by AuthContext
@@ -54,7 +62,7 @@ export default function LoginPage() {
           )}
         </div>
 
-        <ComicPanel title="AUTHENTICATION REQUIRED">
+        <ComicPanel title="CREATE SECURE IDENTITY">
           {activeError && (
             <div className="mb-4 bg-accent-red/20 border-2 border-accent-red p-3 flex items-start gap-2 comic-shadow-sm text-sm text-text">
               <AlertCircle className="w-5 h-5 text-accent-red shrink-0 mt-0.5" />
@@ -62,7 +70,15 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-4 mt-2">
+          <form onSubmit={handleRegister} className="flex flex-col gap-4 mt-2">
+            <ComicInput
+              label="Callsign / Display Name"
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="ShadowHawk"
+              required
+            />
             <ComicInput
               label="Email Address"
               type="email"
@@ -72,42 +88,42 @@ export default function LoginPage() {
               required
             />
             <ComicInput
-              label="Passcode"
+              label="Passcode (min 8 characters)"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
             />
-
-            <div className="flex justify-end">
-              <Link
-                to="/forgot-password"
-                className="text-xs text-accent-blue hover:underline font-bold uppercase tracking-wide"
-              >
-                Lost Passcode?
-              </Link>
-            </div>
+            <ComicInput
+              label="Confirm Passcode"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+            />
 
             <div className="pt-2">
               <ComicButton
                 type="submit"
+                variant="secondary"
                 loading={loading}
                 className="w-full h-12 flex justify-center gap-2"
               >
-                <LogIn className="w-5 h-5" />
-                ENTER SYSTEM
+                <UserPlus className="w-5 h-5" />
+                JOIN THE LINK
               </ComicButton>
             </div>
           </form>
 
           <div className="mt-6 pt-4 border-t-2 border-border flex items-center justify-center text-xs text-text-muted gap-2">
-            <span>New recruit?</span>
+            <span>Already have an identity?</span>
             <Link
-              to="/register"
-              className="text-accent-yellow font-bold uppercase hover:underline"
+              to="/login"
+              className="text-accent-blue font-bold uppercase hover:underline"
             >
-              Enlist Now
+              Sign In
             </Link>
           </div>
         </ComicPanel>

@@ -1,25 +1,51 @@
-import { User, Bell } from 'lucide-react';
+import { User, LogOut } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { isEmulatorMode } from '../../services/firebase';
+import ComicButton from '../ui/ComicButton';
 
 export default function TopBar() {
+  const { currentUser, userProfile, logout } = useAuth();
+
+  const displayName = userProfile?.displayName || currentUser?.displayName || currentUser?.email || 'AGENT';
+
   return (
     <header className="h-16 bg-panel border-b-4 border-ink flex items-center justify-between px-6 z-10">
-      <div className="font-bold text-lg text-text-muted uppercase tracking-wider">
-        {/* We can put breadcrumbs or active page title here later */}
-        COMMUNICATIONS
+      <div className="flex items-center gap-3">
+        <div className="font-bold text-lg text-text uppercase tracking-wider">
+          HQ COMMUNICATIONS
+        </div>
+        {isEmulatorMode && (
+          <span className="bg-accent-yellow/20 border border-accent-yellow text-accent-yellow text-xs font-bold px-2 py-0.5 uppercase tracking-wider comic-shadow-sm">
+            Emulator
+          </span>
+        )}
       </div>
-      
+
       <div className="flex items-center gap-4">
-        <button className="p-2 text-text-muted hover:text-accent-yellow transition-colors relative">
-          <Bell className="w-5 h-5" strokeWidth={2.5} />
-          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-accent-red rounded-full border border-ink"></span>
-        </button>
-        
-        <div className="flex items-center gap-3 pl-4 border-l-2 border-border cursor-pointer hover:opacity-80">
+        <div className="flex items-center gap-3 pl-4 border-l-2 border-border">
           <div className="w-8 h-8 bg-accent-blue border-2 border-ink comic-shadow flex items-center justify-center text-ink rounded-full">
             <User className="w-4 h-4" strokeWidth={3} />
           </div>
-          <span className="font-bold text-sm hidden sm:block">AGENT 42</span>
+          <div className="hidden sm:flex flex-col">
+            <span className="font-bold text-sm text-text leading-tight">{displayName}</span>
+            {userProfile?.role && (
+              <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider">
+                {userProfile.role}
+              </span>
+            )}
+          </div>
         </div>
+
+        <ComicButton
+          variant="ghost"
+          size="sm"
+          onClick={() => logout()}
+          className="text-xs flex items-center gap-1.5 py-1 px-3"
+          title="Sign Out"
+        >
+          <LogOut className="w-3.5 h-3.5 text-accent-red" />
+          <span>SIGN OUT</span>
+        </ComicButton>
       </div>
     </header>
   );

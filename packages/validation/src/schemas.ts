@@ -76,3 +76,26 @@ export const updateProfileSchema = z.object({
   bio: bioSchema.optional(),
   clipboardSyncEnabled: z.boolean().optional()
 });
+
+export const emailSchema = z.string().trim().email('Please enter a valid email address');
+export const passwordSchema = z.string().min(8, 'Passcode must be at least 8 characters');
+
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, 'Passcode is required')
+});
+
+export const registerSchema = z.object({
+  displayName: displayNameSchema,
+  email: emailSchema,
+  password: passwordSchema,
+  confirmPassword: z.string().min(1, 'Confirm passcode is required')
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Passcodes do not match',
+  path: ['confirmPassword']
+});
+
+export const forgotPasswordSchema = z.object({
+  email: emailSchema
+});
+
