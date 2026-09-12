@@ -81,10 +81,29 @@ export const initiateTransferSchema = z.object({
   checksum: sha256ChecksumSchema.optional()
 });
 
+export const chatMessageTextSchema = z.string()
+  .trim()
+  .min(1, 'Message cannot be empty')
+  .max(2000, 'Message cannot exceed 2,000 characters');
+
+export const createConversationSchema = z.object({
+  participantA: z.string().min(1),
+  participantB: z.string().min(1),
+  pairId: z.string().min(1)
+}).refine(data => data.participantA < data.participantB, {
+  message: 'Participants must be sorted lexicographically'
+});
+
+export const sendChatMessageSchema = z.object({
+  conversationId: z.string().min(1),
+  text: chatMessageTextSchema
+});
+
 export const sendMessageSchema = z.object({
   conversationId: z.string(),
-  type: z.enum(['text', 'file', 'system']),
-  content: z.string().max(MAX_MESSAGE_LENGTH),
+  type: z.enum(['text', 'file', 'system']).optional(),
+  content: z.string().max(MAX_MESSAGE_LENGTH).optional(),
+  text: chatMessageTextSchema.optional(),
   fileId: z.string().optional(),
   replyTo: z.string().optional()
 });

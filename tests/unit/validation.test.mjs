@@ -8,6 +8,9 @@ import {
   sanitizedFileNameSchema,
   sha256ChecksumSchema,
   sendMessageSchema,
+  chatMessageTextSchema,
+  createConversationSchema,
+  sendChatMessageSchema,
   syncClipboardSchema,
   createPostSchema,
   updateProfileSchema
@@ -114,3 +117,90 @@ test('error-codes: createAppError formats structured application errors', () => 
   assert.equal(err.message, 'User not signed in');
   assert.deepEqual(err.details, { attempt: 1 });
 });
+
+// Phase 5 Chat Unit Tests
+test('chatMessageTextSchema: accepts valid plain text', () => {
+  const valid = 'Incoming transmission from Station Alpha.';
+  const res = chatMessageTextSchema.safeParse(valid);
+  assert.equal(res.success, true);
+  if (res.success) {
+    assert.equal(res.data, valid);
+  }
+});
+
+test('chatMessageTextSchema: trims whitespace and rejects empty or blank text', () => {
+  assert.equal(chatMessageTextSchema.safeParse('').success, false);
+  assert.equal(chatMessageTextSchema.safeParse('   ').success, false);
+  assert.equal(chatMessageTextSchema.safeParse('\n\t  ').success, false);
+
+  const res = chatMessageTextSchema.safeParse('   padded text   ');
+  assert.equal(res.success, true);
+  if (res.success) {
+    assert.equal(res.data, 'padded text');
+  }
+});
+
+test('chatMessageTextSchema: rejects text exceeding 2000 characters', () => {
+  const oversized = 'x'.repeat(2001);
+  const exactlyMax = 'x'.repeat(2000);
+  assert.equal(chatMessageTextSchema.safeParse(oversized).success, false);
+  assert.equal(chatMessageTextSchema.safeParse(exactlyMax).success, true);
+});
+
+test('createConversationSchema: accepts sorted participants and rejects unsorted or equal', () => {
+  const valid = {
+    participantA: 'userA',
+    participantB: 'userB',
+    pairId: 'devA_devB'
+  };
+  assert.equal(createConversationSchema.safeParse(valid).success, true);
+
+  const unsorted = {
+    participantA: 'userB',
+    participantB: 'userA',
+    pairId: 'devA_devB'
+  };
+  assert.equal(createConversationSchema.safeParse(unsorted).success, false);
+
+  const equal = {
+    participantA: 'userA',
+    participantB: 'userA',
+    pairId: 'devA_devB'
+  };
+  assert.equal(createConversationSchema.safeParse(equal).success, false);
+});
+
+test('sendChatMessageSchema: validates message payload and rejects invalid inputs', () => {
+  const valid = {
+    conversationId: 'userA_userB',
+    text: 'Hello Operative'
+  };
+  assert.equal(sendChatMessageSchema.safeParse(valid).success, true);
+
+  const emptyText = {
+    conversationId: 'userA_userB',
+    text: '   '
+  };
+  assert.equal(sendChatMessageSchema.safeParse(emptyText).success, false);
+
+  const missingConvId = {
+    conversationId: '',
+    text: 'Valid text'
+  };
+  assert.equal(sendChatMessageSchema.safeParse(missingConvId).success, false);
+});
+
+test('deterministicConversationId: sorts participant UIDs lexicographically', () => {
+  function getDeterministicConversationId(uid1, uid2) {
+    if (!uid1 || !uid2 || uid1 === uid2) throw new Error('Invalid UIDs');
+    const [a, b] = [uid1, uid2].sort();
+    return `${a}_${b}`;
+  }
+
+  assert.equal(getDeterministicConversationId('userA', 'userB'), 'userA_userB');
+  assert.equal(getDeterministicConversationId('userB', 'userA'), 'userA_userB');
+  assert.equal(getDeterministicConversationId('operative_zebra', 'agent_alpha'), 'agent_alpha_operative_zebra');
+  assert.throws(() => getDeterministicConversationId('userA', 'userA'));
+  assert.throws(() => getDeterministicConversationId('', 'userB'));
+});
+

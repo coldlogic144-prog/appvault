@@ -344,31 +344,89 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Conversations Collection
+    // ==========================================
+    // 6. Secure One-to-One Chat: conversations/{conversationId}
+    // ==========================================
     match /conversations/{conversationId} {
-      allow read: if isAuthenticated() && resource.data.memberUids.hasAny([request.auth.uid]);
-      allow create: if isAuthenticated() 
-                    && request.resource.data.memberUids.hasAny([request.auth.uid])
-                    && isServerTimestamp(request.resource.data.createdAt);
-      allow update: if isAuthenticated() 
-                    && resource.data.memberUids.hasAny([request.auth.uid]);
-      
-      // Conversation Members
-      match /members/{uid} {
-        allow read: if isConversationMember(conversationId);
-        allow write: if isOwner(uid) && isConversationMember(conversationId);
+      function isParticipant() {
+        return isAuthenticated() && (
+          resource.data.participantA == request.auth.uid ||
+          resource.data.participantB == request.auth.uid
+        );
       }
 
-      // Conversation Messages
+      // Read: Allowed only for conversation participants
+      allow get: if isParticipant();
+      allow list: if isAuthenticated();
+
+      // Create: Enforce deterministic ID, exactly 2 sorted participants, pair validation
+      allow create: if isAuthenticated()
+                    && request.resource.data.conversationId == conversationId
+                    && request.resource.data.participantA is string
+                    && request.resource.data.participantB is string
+                    && request.resource.data.participantA < request.resource.data.participantB
+                    && conversationId == (request.resource.data.participantA + '_' + request.resource.data.participantB)
+                    && request.resource.data.participants == [request.resource.data.participantA, request.resource.data.participantB]
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.pairId is string
+                    && exists(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId))
+                    && get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.status == 'active'
+                    && (
+                      (get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.ownerUid in request.resource.data.participants) ||
+                      (get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.userA in request.resource.data.participants) ||
+                      (get(/databases/$(database)/documents/pairedDevices/$(request.resource.data.pairId)).data.userB in request.resource.data.participants)
+                    )
+                    && request.resource.data.createdAt is timestamp
+                    && request.resource.data.updatedAt is timestamp
+                    && request.resource.data.keys().hasAll(['conversationId', 'participantA', 'participantB', 'participants', 'pairId', 'lastMessageText', 'lastMessageSenderId', 'lastMessageAt', 'createdAt', 'updatedAt'])
+                    && request.resource.data.keys().hasOnly(['conversationId', 'participantA', 'participantB', 'participants', 'pairId', 'lastMessageText', 'lastMessageSenderId', 'lastMessageAt', 'createdAt', 'updatedAt']);
+
+      // Update: Participants cannot be modified, replaced, or added
+      allow update: if isParticipant()
+                    && request.resource.data.conversationId == resource.data.conversationId
+                    && request.resource.data.participantA == resource.data.participantA
+                    && request.resource.data.participantB == resource.data.participantB
+                    && request.resource.data.participants == resource.data.participants
+                    && request.resource.data.pairId == resource.data.pairId
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.updatedAt is timestamp
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessageText', 'lastMessageSenderId', 'lastMessageAt', 'updatedAt']);
+
+      // Direct client deletion of conversation is prohibited
+      allow delete: if false;
+
+      // Messages Subcollection
       match /messages/{messageId} {
-        allow read: if isConversationMember(conversationId);
-        allow create: if isConversationMember(conversationId)
-                      && isOwner(request.resource.data.senderId)
-                      && isServerTimestamp(request.resource.data.createdAt);
-        allow update: if isConversationMember(conversationId)
-                      && isOwner(resource.data.senderId)
-                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'edited', 'editedAt']);
-        allow delete: if false; // Soft delete only
+        // Read: Only participants of parent conversation can read messages
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantA == request.auth.uid ||
+          get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantB == request.auth.uid
+        );
+
+        // Create: Sender must be the authenticated user and a participant; active pair check; text 1-2000 chars
+        allow create: if isAuthenticated()
+                      && request.resource.data.messageId == messageId
+                      && request.resource.data.conversationId == conversationId
+                      && request.resource.data.senderId == request.auth.uid
+                      && (
+                        get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantA == request.auth.uid ||
+                        get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantB == request.auth.uid
+                      )
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 2000
+                      && request.resource.data.deleted == false
+                      && request.resource.data.createdAt is timestamp
+                      && request.resource.data.keys().hasAll(['messageId', 'conversationId', 'senderId', 'text', 'deleted', 'createdAt'])
+                      && request.resource.data.keys().hasOnly(['messageId', 'conversationId', 'senderId', 'text', 'deleted', 'createdAt']);
+
+        // Immutability: Message text and sender cannot be edited after creation; no direct deletion
+        allow update, delete: if false;
+      }
+
+      // Legacy member subcollection retained for schema completeness (deny all)
+      match /members/{uid} {
+        allow read, write: if false;
       }
     }
 

@@ -900,4 +900,309 @@ test('73. File Transfer: Direct deletion of file transfer record is denied', asy
   await assertFails(userADb.doc('files/f-del').delete());
 });
 
+// =============================================================================
+// SECURE ONE-TO-ONE CHAT SECURITY INTEGRATION TESTS (74 - 93)
+// =============================================================================
+
+function getValidPairedRecord(pairId = 'dev1_dev2', userA = 'userA', userB = 'userB', status = 'active') {
+  return {
+    pairId,
+    ownerUid: userA,
+    deviceA: 'dev1',
+    deviceB: 'dev2',
+    platformA: 'windows',
+    platformB: 'windows',
+    deviceNameA: 'Station-Alpha',
+    deviceNameB: 'Station-Beta',
+    status,
+    userA,
+    userB,
+    createdAt: new Date(),
+    unpairedAt: status === 'active' ? null : new Date()
+  };
+}
+
+function getValidConversation(userA = 'userA', userB = 'userB', pairId = 'dev1_dev2') {
+  const [pA, pB] = [userA, userB].sort();
+  const conversationId = `${pA}_${pB}`;
+  return {
+    conversationId,
+    participantA: pA,
+    participantB: pB,
+    participants: [pA, pB],
+    pairId,
+    lastMessageText: null,
+    lastMessageSenderId: null,
+    lastMessageAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+}
+
+function getValidChatMessage(conversationId, messageId = 'msg1', senderId = 'userA', text = 'Secure transmission verified.') {
+  return {
+    messageId,
+    conversationId,
+    senderId,
+    text,
+    deleted: false,
+    createdAt: new Date()
+  };
+}
+
+test('74. Chat: Participant A can create a conversation with Participant B if valid pairing exists', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('pairedDevices/dev1_dev2').set(getValidPairedRecord('dev1_dev2', 'userA', 'userB', 'active'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2')));
+});
+
+test('75. Chat: Creation fails if pairing does not exist', async () => {
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'nonexistent_pair')));
+});
+
+test('76. Chat: Creation fails if pairing is inactive', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('pairedDevices/dev1_dev2').set(getValidPairedRecord('dev1_dev2', 'userA', 'userB', 'unpaired'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2')));
+});
+
+test('77. Chat: Creation fails if requester is not a participant', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('pairedDevices/dev1_dev2').set(getValidPairedRecord('dev1_dev2', 'userA', 'userB', 'active'));
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(userCDb.doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2')));
+});
+
+test('78. Chat: Creation fails if participant list is not sorted lexicographically', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('pairedDevices/dev1_dev2').set(getValidPairedRecord('dev1_dev2', 'userA', 'userB', 'active'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  const unsortedConv = {
+    conversationId: 'userB_userA',
+    participantA: 'userB',
+    participantB: 'userA',
+    participants: ['userB', 'userA'],
+    pairId: 'dev1_dev2',
+    lastMessageText: null,
+    lastMessageSenderId: null,
+    lastMessageAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  await assertFails(userBDb.doc('conversations/userB_userA').set(unsortedConv));
+});
+
+test('79. Chat: Creation fails if conversation ID does not match deterministic format', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('pairedDevices/dev1_dev2').set(getValidPairedRecord('dev1_dev2', 'userA', 'userB', 'active'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const invalidIdConv = {
+    conversationId: 'custom-thread-id',
+    participantA: 'userA',
+    participantB: 'userB',
+    participants: ['userA', 'userB'],
+    pairId: 'dev1_dev2',
+    lastMessageText: null,
+    lastMessageSenderId: null,
+    lastMessageAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  await assertFails(userADb.doc('conversations/custom-thread-id').set(invalidIdConv));
+});
+
+test('80. Chat: Participant A can read conversation', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('conversations/userA_userB').get());
+});
+
+test('81. Chat: Participant B can read conversation', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertSucceeds(userBDb.doc('conversations/userA_userB').get());
+});
+
+test('82. Chat: Non-participant cannot read conversation', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(userCDb.doc('conversations/userA_userB').get());
+});
+
+test('83. Chat: Anonymous user cannot read conversation', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+  await assertFails(unauthDb.doc('conversations/userA_userB').get());
+});
+
+test('84. Chat: Participants cannot mutate immutable fields (pairId, participantA, participantB, participants)', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+
+  // Attempting to mutate pairId must fail
+  await assertFails(userADb.doc('conversations/userA_userB').update({
+    pairId: 'tampered_pair',
+    updatedAt: new Date()
+  }));
+
+  // Attempting to add a third participant must fail
+  await assertFails(userADb.doc('conversations/userA_userB').update({
+    participants: ['userA', 'userB', 'userC'],
+    updatedAt: new Date()
+  }));
+
+  // Valid snippet update must succeed
+  await assertSucceeds(userADb.doc('conversations/userA_userB').update({
+    lastMessageText: 'New message snippet',
+    lastMessageSenderId: 'userA',
+    lastMessageAt: new Date(),
+    updatedAt: new Date()
+  }));
+});
+
+test('85. Chat: Non-participant cannot update conversation', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(userCDb.doc('conversations/userA_userB').update({
+    lastMessageText: 'Hacked message',
+    lastMessageSenderId: 'userC',
+    lastMessageAt: new Date(),
+    updatedAt: new Date()
+  }));
+});
+
+test('86. Chat: Participant A can send message to conversation', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('conversations/userA_userB/messages/msg1').set(
+    getValidChatMessage('userA_userB', 'msg1', 'userA', 'Hello operative B')
+  ));
+});
+
+test('87. Chat: Participant B can send message to conversation', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertSucceeds(userBDb.doc('conversations/userA_userB/messages/msg2').set(
+    getValidChatMessage('userA_userB', 'msg2', 'userB', 'Acknowledged operative A')
+  ));
+});
+
+test('88. Chat: Message fails if sender is not requester', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  // userA pretending senderId is userB
+  await assertFails(userADb.doc('conversations/userA_userB/messages/msg3').set(
+    getValidChatMessage('userA_userB', 'msg3', 'userB', 'Spoofed message')
+  ));
+});
+
+test('89. Chat: Message fails if text is empty', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('conversations/userA_userB/messages/msg-empty').set(
+    getValidChatMessage('userA_userB', 'msg-empty', 'userA', '')
+  ));
+});
+
+test('90. Chat: Message fails if text exceeds 2000 characters', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const oversizedText = 'A'.repeat(2001);
+  await assertFails(userADb.doc('conversations/userA_userB/messages/msg-over').set(
+    getValidChatMessage('userA_userB', 'msg-over', 'userA', oversizedText)
+  ));
+});
+
+test('91. Chat: Non-participant cannot send message', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(userCDb.doc('conversations/userA_userB/messages/msg-c').set(
+    getValidChatMessage('userA_userB', 'msg-c', 'userC', 'Infiltrating chat')
+  ));
+});
+
+test('92. Chat: Non-participant cannot read messages', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+    await context.firestore().doc('conversations/userA_userB/messages/msg1').set(
+      getValidChatMessage('userA_userB', 'msg1', 'userA', 'Top secret transmission')
+    );
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(userCDb.doc('conversations/userA_userB/messages/msg1').get());
+});
+
+test('93. Chat: Messages cannot be modified or deleted directly', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('conversations/userA_userB').set(getValidConversation('userA', 'userB', 'dev1_dev2'));
+    await context.firestore().doc('conversations/userA_userB/messages/msg1').set(
+      getValidChatMessage('userA_userB', 'msg1', 'userA', 'Immutable dispatch')
+    );
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+
+  // Direct modification must fail
+  await assertFails(userADb.doc('conversations/userA_userB/messages/msg1').update({
+    text: 'Tampered message',
+    updatedAt: new Date()
+  }));
+
+  // Direct deletion must fail
+  await assertFails(userADb.doc('conversations/userA_userB/messages/msg1').delete());
+});
+
+
 
