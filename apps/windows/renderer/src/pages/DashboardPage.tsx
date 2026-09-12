@@ -45,14 +45,17 @@ export default function DashboardPage() {
             Command Center
           </h1>
           <p className="text-xs text-text-muted uppercase font-bold tracking-widest mt-1">
-            Realtime Station Status & Mission Directives
+            Operative Dossier & Station Directives
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className={`inline-flex items-center gap-2 px-3 py-1 font-bold text-xs uppercase border-2 border-ink comic-shadow-sm ${presenceBadgeColor}`}>
-            <Radio className="w-3.5 h-3.5 animate-pulse" />
-            Station {presence}
+          <span
+            className={`inline-flex items-center gap-2 px-3 py-1 font-bold text-xs uppercase border-2 border-ink comic-shadow-sm ${presenceBadgeColor}`}
+            title="Self-reported profile status set in Settings"
+          >
+            <Radio className="w-3.5 h-3.5" />
+            Beacon: {presence} (Self-Reported)
           </span>
           <span className="bg-panel border-2 border-ink text-accent-blue px-3 py-1 text-xs font-mono font-bold comic-shadow-sm">
             v0.1.0

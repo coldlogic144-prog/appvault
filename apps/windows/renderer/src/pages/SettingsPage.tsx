@@ -198,8 +198,11 @@ export default function SettingsPage() {
               <div className="flex flex-col gap-1.5">
                 <label className="font-bold text-text-muted text-sm uppercase flex items-center gap-1.5">
                   <Radio className="w-3.5 h-3.5 text-accent-blue" />
-                  Presence Beacon
+                  Presence Beacon (Self-Reported Status)
                 </label>
+                <p className="text-[10px] text-text-muted">
+                  Broadcast status displayed on your profile. Automated station heartbeat telemetry will activate in Phase 3.
+                </p>
                 <div className="grid grid-cols-3 gap-2">
                   {(['online', 'away', 'offline'] as const).map((status) => (
                     <button

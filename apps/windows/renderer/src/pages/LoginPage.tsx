@@ -7,7 +7,7 @@ import Logo from '../components/ui/Logo';
 import { LogIn, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { loginSchema } from '@comiclink/validation';
-import { isEmulatorMode } from '../services/firebase';
+import { isEmulatorMode, isFirebaseConfigValid, missingEnvKeys } from '../services/firebase';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -55,6 +55,16 @@ export default function LoginPage() {
         </div>
 
         <ComicPanel title="AUTHENTICATION REQUIRED">
+          {!isFirebaseConfigValid && (
+            <div className="mb-4 bg-accent-yellow/20 border-2 border-accent-yellow p-3 flex items-start gap-2 comic-shadow-sm text-xs text-text">
+              <AlertCircle className="w-5 h-5 text-accent-yellow shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-accent-yellow uppercase block font-black">Configuration Required</strong>
+                <span>Firebase credentials are missing ({missingEnvKeys.join(', ')}). Set up <code>.env</code> or set <code>VITE_USE_EMULATORS=true</code>.</span>
+              </div>
+            </div>
+          )}
+
           {activeError && (
             <div className="mb-4 bg-accent-red/20 border-2 border-accent-red p-3 flex items-start gap-2 comic-shadow-sm text-sm text-text">
               <AlertCircle className="w-5 h-5 text-accent-red shrink-0 mt-0.5" />

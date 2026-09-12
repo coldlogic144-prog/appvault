@@ -74,14 +74,14 @@ service cloud.firestore {
                       && request.resource.data.isRevoked == false
                       && request.resource.data.revokedAt == null
                       && request.resource.data.keys().hasAll(['deviceId', 'ownerId', 'deviceName', 'platform', 'appVersion', 'createdAt', 'lastSeenAt', 'isRevoked', 'revokedAt'])
-                      && request.resource.data.keys().hasOnly(['deviceId', 'ownerId', 'deviceName', 'platform', 'appVersion', 'createdAt', 'lastSeenAt', 'isRevoked', 'revokedAt', 'pushToken']);
+                      && request.resource.data.keys().hasOnly(['deviceId', 'ownerId', 'deviceName', 'platform', 'appVersion', 'createdAt', 'lastSeenAt', 'isRevoked', 'revokedAt']);
 
         allow update: if isOwner(uid)
                       && request.resource.data.deviceId == resource.data.deviceId
                       && request.resource.data.ownerId == resource.data.ownerId
                       && request.resource.data.platform == resource.data.platform
                       && request.resource.data.createdAt == resource.data.createdAt
-                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deviceName', 'lastSeenAt', 'isRevoked', 'revokedAt', 'appVersion', 'pushToken'])
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deviceName', 'lastSeenAt', 'isRevoked', 'revokedAt', 'appVersion'])
                       && (request.resource.data.isRevoked == resource.data.isRevoked || request.resource.data.isRevoked == true)
                       && (request.resource.data.deviceName is string && request.resource.data.deviceName.size() > 0 && request.resource.data.deviceName.size() <= 100);
 

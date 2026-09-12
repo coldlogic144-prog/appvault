@@ -17,7 +17,6 @@ export interface Device {
   createdAt: FirestoreTimestamp;
   isRevoked: boolean;
   revokedAt: FirestoreTimestamp | null;
-  pushToken?: string | null;
 }
 
 export interface RegisterDeviceRequest {
