@@ -701,3 +701,203 @@ test('58. Pairing: Direct deletion of pairing session is blocked', async () => {
   await assertFails(userADb.doc('pairingSessions/sess-del').delete());
 });
 
+// =============================================================================
+// FILE TRANSFERS SECURITY INTEGRATION TESTS (59 - 73)
+// =============================================================================
+
+function getValidFileTransfer(fileId = 'file1', senderId = 'userA', recipientId = 'userB') {
+  return {
+    fileId,
+    senderId,
+    recipientId,
+    sourceDeviceId: 'dev1',
+    sourceDeviceName: 'Station-Alpha',
+    targetDeviceId: 'dev2',
+    targetDeviceName: 'Station-Beta',
+    fileName: 'schematic.pdf',
+    mimeType: 'application/pdf',
+    fileSize: 2 * 1024 * 1024,
+    storagePath: `transfers/${senderId}/${recipientId}/${fileId}/schematic.pdf`,
+    status: 'pending',
+    checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    failureReason: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    completedAt: null,
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+  };
+}
+
+test('59. File Transfer: Unauthenticated user cannot create transfer manifest', async () => {
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+  await assertFails(unauthDb.doc('files/f1').set(getValidFileTransfer('f1', 'userA', 'userB')));
+});
+
+test('60. File Transfer: User A can create valid transfer manifest for active device', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('files/f1').set(getValidFileTransfer('f1', 'userA', 'userB')));
+});
+
+test('61. File Transfer: User A cannot create transfer if source device is revoked', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const revoked = getValidDevice('dev-revoked', 'userA');
+    revoked.isRevoked = true;
+    revoked.revokedAt = new Date();
+    await context.firestore().doc('users/userA/devices/dev-revoked').set(revoked);
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const payload = getValidFileTransfer('f-rev', 'userA', 'userB');
+  payload.sourceDeviceId = 'dev-revoked';
+  await assertFails(userADb.doc('files/f-rev').set(payload));
+});
+
+test('62. File Transfer: User A cannot create transfer with false senderId', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('files/f2').set(getValidFileTransfer('f2', 'userB', 'userA')));
+});
+
+test('63. File Transfer: Transfer manifest cannot exceed 100 MB limit', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const oversized = getValidFileTransfer('f-oversized', 'userA', 'userB');
+  oversized.fileSize = 101 * 1024 * 1024; // 101MB
+  await assertFails(userADb.doc('files/f-oversized').set(oversized));
+});
+
+test('64. File Transfer: Transfer manifest requires valid 64-character hex checksum', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('users/userA/devices/dev1').set(getValidDevice('dev1', 'userA'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  const badHash = getValidFileTransfer('f-badhash', 'userA', 'userB');
+  badHash.checksum = 'short-hash';
+  await assertFails(userADb.doc('files/f-badhash').set(badHash));
+});
+
+test('65. File Transfer: Sender User A can read own transfer manifest', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('files/f-read').set(getValidFileTransfer('f-read', 'userA', 'userB'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('files/f-read').get());
+});
+
+test('66. File Transfer: Recipient User B can read incoming transfer manifest', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('files/f-read-b').set(getValidFileTransfer('f-read-b', 'userA', 'userB'));
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertSucceeds(userBDb.doc('files/f-read-b').get());
+});
+
+test('67. File Transfer: Third-party User C cannot read transfer between User A and User B', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('files/f-private').set(getValidFileTransfer('f-private', 'userA', 'userB'));
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(userCDb.doc('files/f-private').get());
+});
+
+test('68. File Transfer: Sender User A can update status to uploading and ready', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('files/f-progress').set(getValidFileTransfer('f-progress', 'userA', 'userB'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertSucceeds(userADb.doc('files/f-progress').update({
+    status: 'uploading',
+    updatedAt: new Date()
+  }));
+  await assertSucceeds(userADb.doc('files/f-progress').update({
+    status: 'ready',
+    updatedAt: new Date()
+  }));
+});
+
+test('69. File Transfer: Recipient User B can update status from ready to completed', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const ready = getValidFileTransfer('f-ready', 'userA', 'userB');
+    ready.status = 'ready';
+    await context.firestore().doc('files/f-ready').set(ready);
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertSucceeds(userBDb.doc('files/f-ready').update({
+    status: 'completed',
+    completedAt: new Date(),
+    updatedAt: new Date()
+  }));
+});
+
+test('70. File Transfer: Recipient User B cannot complete an unready transfer', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const pending = getValidFileTransfer('f-pending', 'userA', 'userB');
+    pending.status = 'pending';
+    await context.firestore().doc('files/f-pending').set(pending);
+  });
+
+  const userBDb = testEnv.authenticatedContext('userB', { email_verified: true }).firestore();
+  await assertFails(userBDb.doc('files/f-pending').update({
+    status: 'completed',
+    completedAt: new Date(),
+    updatedAt: new Date()
+  }));
+});
+
+test('71. File Transfer: Third-party User C cannot update or tamper with transfer', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const ready = getValidFileTransfer('f-tamper', 'userA', 'userB');
+    ready.status = 'ready';
+    await context.firestore().doc('files/f-tamper').set(ready);
+  });
+
+  const userCDb = testEnv.authenticatedContext('userC', { email_verified: true }).firestore();
+  await assertFails(userCDb.doc('files/f-tamper').update({
+    status: 'completed',
+    completedAt: new Date(),
+    updatedAt: new Date()
+  }));
+});
+
+test('72. File Transfer: User A cannot alter immutable transfer metadata (fileSize, checksum) on update', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('files/f-immutable').set(getValidFileTransfer('f-immutable', 'userA', 'userB'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('files/f-immutable').update({
+    fileSize: 50,
+    updatedAt: new Date()
+  }));
+  await assertFails(userADb.doc('files/f-immutable').update({
+    checksum: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+    updatedAt: new Date()
+  }));
+});
+
+test('73. File Transfer: Direct deletion of file transfer record is denied', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('files/f-del').set(getValidFileTransfer('f-del', 'userA', 'userB'));
+  });
+
+  const userADb = testEnv.authenticatedContext('userA', { email_verified: true }).firestore();
+  await assertFails(userADb.doc('files/f-del').delete());
+});
+
+

@@ -5,6 +5,8 @@ import {
   registerDeviceSchema,
   createPairingSchema,
   initiateTransferSchema,
+  sanitizedFileNameSchema,
+  sha256ChecksumSchema,
   sendMessageSchema,
   syncClipboardSchema,
   createPostSchema,
@@ -82,6 +84,21 @@ test('initiateTransferSchema: enforces max file size limit', () => {
   };
   assert.equal(initiateTransferSchema.safeParse(valid).success, true);
   assert.equal(initiateTransferSchema.safeParse(oversized).success, false);
+});
+
+test('sanitizedFileNameSchema: rejects path traversal and illegal chars', () => {
+  assert.equal(sanitizedFileNameSchema.safeParse('valid-document.pdf').success, true);
+  assert.equal(sanitizedFileNameSchema.safeParse('report_2026.png').success, true);
+  assert.equal(sanitizedFileNameSchema.safeParse('../secret.txt').success, false);
+  assert.equal(sanitizedFileNameSchema.safeParse('..\\secret.txt').success, false);
+  assert.equal(sanitizedFileNameSchema.safeParse('file/name.txt').success, false);
+  assert.equal(sanitizedFileNameSchema.safeParse('file*name?.txt').success, false);
+});
+
+test('sha256ChecksumSchema: accepts 64-char hex and rejects invalid length or chars', () => {
+  assert.equal(sha256ChecksumSchema.safeParse('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855').success, true);
+  assert.equal(sha256ChecksumSchema.safeParse('short-hash').success, false);
+  assert.equal(sha256ChecksumSchema.safeParse('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85G').success, false);
 });
 
 test('constants: enum integrity checks', () => {

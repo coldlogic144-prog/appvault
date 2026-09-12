@@ -16,7 +16,11 @@ service firebase.storage {
       return request.resource.contentType.matches('image/.*') 
           || request.resource.contentType.matches('video/.*')
           || request.resource.contentType.matches('application/pdf')
-          || request.resource.contentType.matches('text/plain');
+          || request.resource.contentType.matches('text/.*')
+          || request.resource.contentType.matches('application/zip')
+          || request.resource.contentType.matches('application/x-zip-compressed')
+          || request.resource.contentType.matches('application/json')
+          || request.resource.contentType.matches('application/octet-stream');
     }
     function isLessThanMB(sizeMB) {
       return request.resource.size < sizeMB * 1024 * 1024;
@@ -25,6 +29,15 @@ service firebase.storage {
     // Default deny all
     match /{allPaths=**} {
       allow read, write: if false;
+    }
+
+    // Inter-Station File Transfers (Phase 4)
+    match /transfers/{senderUid}/{recipientUid}/{fileId}/{fileName} {
+      allow read: if isAuthenticated() && (request.auth.uid == senderUid || request.auth.uid == recipientUid);
+      allow write: if isAuthenticated() 
+                   && request.auth.uid == senderUid 
+                   && isLessThanMB(100) 
+                   && isValidContentType();
     }
 
     // User Avatars

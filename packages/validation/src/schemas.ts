@@ -57,12 +57,28 @@ export const scanPairingSchema = z.object({
   targetDeviceId: z.string().uuid()
 });
 
+export const sanitizedFileNameSchema = z.string()
+  .trim()
+  .min(1)
+  .max(MAX_FILE_NAME_LENGTH)
+  .refine(val => !/[/\\?%*:|"<>]/g.test(val) && !val.includes('..'), {
+    message: 'Invalid file name. Path traversal characters not allowed.'
+  });
+
+export const sha256ChecksumSchema = z.string().regex(
+  /^[a-f0-9]{64}$/i,
+  'Checksum must be a valid 64-character SHA-256 hex string'
+);
+
 export const initiateTransferSchema = z.object({
-  sourceDeviceId: z.string().uuid(),
+  sourceDeviceId: z.string().uuid().optional(),
   targetDeviceId: z.string().uuid(),
-  fileName: z.string().max(MAX_FILE_NAME_LENGTH),
-  mimeType: z.string(),
-  fileSize: z.number().positive().max(MAX_FILE_SIZE_BYTES)
+  targetDeviceName: z.string().trim().min(1).max(MAX_DEVICE_NAME_LENGTH).optional(),
+  recipientId: z.string().min(1).optional(),
+  fileName: sanitizedFileNameSchema,
+  mimeType: z.string().min(1),
+  fileSize: z.number().positive().max(MAX_FILE_SIZE_BYTES),
+  checksum: sha256ChecksumSchema.optional()
 });
 
 export const sendMessageSchema = z.object({

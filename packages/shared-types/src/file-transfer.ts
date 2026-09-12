@@ -1,30 +1,44 @@
 import type { Timestamp } from './user';
 
-export type FileTransferStatus = 'created' | 'uploading' | 'uploaded' | 'queued' | 'transferring' | 'completed' | 'failed' | 'cancelled' | 'expired';
+export type FileTransferStatus =
+  | 'pending'
+  | 'uploading'
+  | 'ready'
+  | 'completed'
+  | 'rejected'
+  | 'cancelled'
+  | 'failed'
+  | 'expired';
 
 export interface FileTransferRecord {
   fileId: string;
-  ownerId: string;
+  senderId: string;
+  recipientId: string;
   sourceDeviceId: string;
+  sourceDeviceName: string;
   targetDeviceId: string;
+  targetDeviceName: string;
   fileName: string;
   mimeType: string;
   fileSize: number;
   storagePath: string;
   status: FileTransferStatus;
-  checksum: string | null;
+  checksum: string;
   failureReason: string | null;
   createdAt: Timestamp;
+  updatedAt: Timestamp;
   completedAt: Timestamp | null;
   expiresAt: Timestamp;
 }
 
 export interface InitiateTransferRequest {
-  sourceDeviceId: string;
   targetDeviceId: string;
+  targetDeviceName: string;
+  recipientId: string;
   fileName: string;
   mimeType: string;
   fileSize: number;
+  checksum: string;
 }
 
 export const ALLOWED_MIME_TYPES: string[] = [

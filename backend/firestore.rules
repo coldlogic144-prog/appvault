@@ -253,14 +253,95 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Files Collection
+    // ==========================================
+    // 5. Inter-Station File Transfers: files/{fileId}
+    // ==========================================
     match /files/{fileId} {
-      allow read: if isOwner(resource.data.ownerId);
-      allow create: if isOwner(request.resource.data.ownerId)
-                    && isServerTimestamp(request.resource.data.createdAt);
-      allow update: if isOwner(resource.data.ownerId)
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
-      allow delete: if false; // Soft delete only
+      // Read: Single document get allowed for sender or recipient
+      allow get: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid
+      );
+
+      // List queries: Allowed for authenticated users filtering by their own role
+      allow list: if isAuthenticated();
+
+      // Create: Authenticated sender, valid registered active device, valid fields and limits
+      allow create: if isAuthenticated()
+                    && request.resource.data.fileId == fileId
+                    && request.resource.data.senderId == request.auth.uid
+                    && request.resource.data.recipientId is string
+                    && request.resource.data.recipientId.size() > 0
+                    && request.resource.data.sourceDeviceId is string
+                    && isDeviceActive(request.auth.uid, request.resource.data.sourceDeviceId)
+                    && request.resource.data.sourceDeviceName is string
+                    && request.resource.data.sourceDeviceName.size() > 0
+                    && request.resource.data.sourceDeviceName.size() <= 100
+                    && request.resource.data.targetDeviceId is string
+                    && request.resource.data.targetDeviceId.size() > 0
+                    && request.resource.data.targetDeviceId.size() <= 100
+                    && request.resource.data.targetDeviceName is string
+                    && request.resource.data.targetDeviceName.size() > 0
+                    && request.resource.data.targetDeviceName.size() <= 100
+                    && request.resource.data.fileName is string
+                    && request.resource.data.fileName.size() > 0
+                    && request.resource.data.fileName.size() <= 255
+                    && request.resource.data.fileSize is number
+                    && request.resource.data.fileSize > 0
+                    && request.resource.data.fileSize <= 100 * 1024 * 1024
+                    && request.resource.data.mimeType is string
+                    && request.resource.data.checksum is string
+                    && request.resource.data.checksum.size() == 64
+                    && request.resource.data.status in ['pending', 'uploading']
+                    && request.resource.data.storagePath is string
+                    && request.resource.data.failureReason == null
+                    && request.resource.data.completedAt == null
+                    && request.resource.data.createdAt is timestamp
+                    && request.resource.data.updatedAt is timestamp
+                    && request.resource.data.expiresAt is timestamp
+                    && request.resource.data.expiresAt > request.resource.data.createdAt
+                    && request.resource.data.keys().hasAll(['fileId', 'senderId', 'recipientId', 'sourceDeviceId', 'sourceDeviceName', 'targetDeviceId', 'targetDeviceName', 'fileName', 'mimeType', 'fileSize', 'storagePath', 'status', 'checksum', 'failureReason', 'createdAt', 'updatedAt', 'completedAt', 'expiresAt'])
+                    && request.resource.data.keys().hasOnly(['fileId', 'senderId', 'recipientId', 'sourceDeviceId', 'sourceDeviceName', 'targetDeviceId', 'targetDeviceName', 'fileName', 'mimeType', 'fileSize', 'storagePath', 'status', 'checksum', 'failureReason', 'createdAt', 'updatedAt', 'completedAt', 'expiresAt']);
+
+      // Update: Guarded state transitions and immutability of transport payload metadata
+      allow update: if isAuthenticated()
+                    && request.resource.data.fileId == resource.data.fileId
+                    && request.resource.data.senderId == resource.data.senderId
+                    && request.resource.data.recipientId == resource.data.recipientId
+                    && request.resource.data.sourceDeviceId == resource.data.sourceDeviceId
+                    && request.resource.data.sourceDeviceName == resource.data.sourceDeviceName
+                    && request.resource.data.targetDeviceId == resource.data.targetDeviceId
+                    && request.resource.data.targetDeviceName == resource.data.targetDeviceName
+                    && request.resource.data.fileName == resource.data.fileName
+                    && request.resource.data.mimeType == resource.data.mimeType
+                    && request.resource.data.fileSize == resource.data.fileSize
+                    && request.resource.data.storagePath == resource.data.storagePath
+                    && request.resource.data.checksum == resource.data.checksum
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.expiresAt == resource.data.expiresAt
+                    && request.resource.data.updatedAt is timestamp
+                    && (
+                      // 1. Sender transitions: pending -> uploading -> ready, or cancellation/failure
+                      (request.auth.uid == resource.data.senderId
+                        && resource.data.status in ['pending', 'uploading']
+                        && request.resource.data.status in ['uploading', 'ready', 'failed', 'cancelled']
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'failureReason']))
+                      ||
+                      // 2. Recipient transitions: ready -> completed (with completedAt) or rejected
+                      (request.auth.uid == resource.data.recipientId
+                        && resource.data.status == 'ready'
+                        && (
+                          (request.resource.data.status == 'completed'
+                            && request.resource.data.completedAt is timestamp
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'completedAt']))
+                          ||
+                          (request.resource.data.status in ['rejected', 'failed']
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'failureReason']))
+                        ))
+                    );
+
+      // Deletion is blocked (soft-delete via status transitions)
+      allow delete: if false;
     }
 
     // Conversations Collection
