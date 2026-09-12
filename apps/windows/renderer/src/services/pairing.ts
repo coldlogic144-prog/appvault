@@ -296,19 +296,19 @@ export function listenToPairingSession(
 export async function getPairedDevices(ownerUid: string): Promise<PairedDevice[]> {
   if (!db) return [];
   try {
-    const q = query(
-      collection(db, 'pairedDevices'),
-      where('status', '==', 'active')
-    );
-    const snap = await getDocs(q);
-    const list: PairedDevice[] = [];
-    snap.forEach((d) => {
-      const data = d.data() as PairedDevice & { userA?: string; userB?: string };
-      if (data.ownerUid === ownerUid || data.userA === ownerUid || data.userB === ownerUid) {
-        list.push(data);
-      }
-    });
-    return list;
+    const [snapA, snapB, snapOwner] = await Promise.all([
+      getDocs(query(collection(db, 'pairedDevices'), where('userA', '==', ownerUid), where('status', '==', 'active'))),
+      getDocs(query(collection(db, 'pairedDevices'), where('userB', '==', ownerUid), where('status', '==', 'active'))),
+      getDocs(query(collection(db, 'pairedDevices'), where('ownerUid', '==', ownerUid), where('status', '==', 'active')))
+    ]);
+
+    const map = new Map<string, PairedDevice>();
+    for (const snap of [snapA, snapB, snapOwner]) {
+      snap.forEach((d) => {
+        map.set(d.id, d.data() as PairedDevice);
+      });
+    }
+    return Array.from(map.values());
   } catch (error) {
     console.warn('[PairingService] Error fetching paired devices:', error);
     return [];

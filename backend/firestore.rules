@@ -357,7 +357,10 @@ service cloud.firestore {
       }
 
       // Read: Allowed ONLY for conversation participants (single get and scoped list queries)
-      allow get: if isParticipant();
+      allow get: if isAuthenticated() && (
+        (resource != null && isParticipant()) ||
+        (resource == null && conversationId.matches('.*' + request.auth.uid + '.*'))
+      );
       allow list: if isAuthenticated() && resource.data.participants.hasAny([request.auth.uid]);
 
       // Create: Enforce deterministic ID, exactly 2 sorted participants, strict dual-participant active pair validation
