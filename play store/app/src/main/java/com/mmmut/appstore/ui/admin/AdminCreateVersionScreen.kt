@@ -1,10 +1,5 @@
 package com.mmmut.appstore.ui.admin
 
-import android.content.Context
-import android.net.Uri
-import android.provider.OpenableColumns
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,11 +16,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,9 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -54,16 +44,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mmmut.appstore.data.model.AppVersion
-import com.mmmut.appstore.data.model.UploadState
 import com.mmmut.appstore.data.repository.AppRepository
-import com.mmmut.appstore.data.repository.StorageRepository
-import com.mmmut.appstore.ui.theme.InstallGreenLight
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,29 +56,21 @@ import kotlinx.coroutines.launch
 fun AdminCreateVersionScreen(
     appId: String,
     appRepository: AppRepository,
-    storageRepository: StorageRepository,
     onSuccess: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var versionName by remember { mutableStateOf("1.0.0") }
     var versionCodeText by remember { mutableStateOf("1") }
+    var releaseTag by remember { mutableStateOf("v1.0.0") }
+    var apkUrl by remember { mutableStateOf("") }
+    var releaseNotes by remember { mutableStateOf("") }
     var minAndroidText by remember { mutableStateOf("26") }
-    var changelog by remember { mutableStateOf("") }
     var published by remember { mutableStateOf(true) }
 
-    // APK File Selection & Upload
-    var selectedApkUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedApkFileName by remember { mutableStateOf<String?>(null) }
-    var selectedApkSizeBytes by remember { mutableLongStateOf(0L) }
-    var uploadedApkUrl by remember { mutableStateOf("") }
-
-    var uploadState by remember { mutableStateOf<UploadState>(UploadState.Idle) }
-    var uploadJob by remember { mutableStateOf<Job?>(null) }
     var isSavingVersion by remember { mutableStateOf(false) }
 
     // Existing highest version code for validation
@@ -113,47 +90,23 @@ fun AdminCreateVersionScreen(
         }
     }
 
-    val apkPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            val (name, size) = queryFileInfo(context, uri)
-            selectedApkUri = uri
-            selectedApkFileName = name
-            selectedApkSizeBytes = size
-        }
-    }
-
-    fun startApkUpload() {
-        val uri = selectedApkUri ?: return
-        uploadJob = coroutineScope.launch {
-            storageRepository.uploadApk(appId, versionId, uri).collect { state ->
-                uploadState = state
-                if (state is UploadState.Success) {
-                    uploadedApkUrl = state.downloadUrl
-                }
-            }
-        }
-    }
-
-    fun cancelApkUpload() {
-        uploadJob?.cancel()
-        uploadState = UploadState.Idle
-    }
-
     var versionNameError by remember { mutableStateOf<String?>(null) }
     var versionCodeError by remember { mutableStateOf<String?>(null) }
+    var releaseTagError by remember { mutableStateOf<String?>(null) }
+    var apkUrlError by remember { mutableStateOf<String?>(null) }
 
     fun validate(): Boolean {
         var valid = true
 
+        // 1. Version name
         if (versionName.isBlank()) {
-            versionNameError = "Version name cannot be empty (e.g. 1.0.0)"
+            versionNameError = "Version name cannot be empty (e.g. 1.1.0)"
             valid = false
         } else {
             versionNameError = null
         }
 
+        // 2. Version code
         val code = versionCodeText.toLongOrNull()
         if (code == null || code <= 0) {
             versionCodeError = "Version code must be a positive integer"
@@ -163,6 +116,29 @@ fun AdminCreateVersionScreen(
             valid = false
         } else {
             versionCodeError = null
+        }
+
+        // 3. Release tag
+        if (releaseTag.isBlank()) {
+            releaseTagError = "Release tag cannot be empty (e.g. v1.1.0)"
+            valid = false
+        } else {
+            releaseTagError = null
+        }
+
+        // 4. APK Download URL
+        val trimmedUrl = apkUrl.trim()
+        if (trimmedUrl.isBlank()) {
+            apkUrlError = "APK URL cannot be empty"
+            valid = false
+        } else if (!trimmedUrl.startsWith("http://", ignoreCase = true) && !trimmedUrl.startsWith("https://", ignoreCase = true)) {
+            apkUrlError = "APK URL must be a valid HTTP/HTTPS URL"
+            valid = false
+        } else if (!trimmedUrl.contains("github.com", ignoreCase = true) || !trimmedUrl.endsWith(".apk", ignoreCase = true)) {
+            apkUrlError = "APK URL should point to a GitHub Release APK (e.g. https://github.com/OWNER/REPO/releases/download/v1.1.0/app-release.apk)"
+            valid = false
+        } else {
+            apkUrlError = null
         }
 
         return valid
@@ -199,8 +175,11 @@ fun AdminCreateVersionScreen(
                 onValueChange = {
                     versionName = it.trim()
                     if (versionNameError != null) versionNameError = null
+                    if (releaseTag.isBlank() || releaseTag == "v${versionName}") {
+                        releaseTag = "v$it"
+                    }
                 },
-                label = { Text("Version Name (e.g. 1.2.0) *") },
+                label = { Text("Version Name (e.g. 1.1.0) *") },
                 isError = versionNameError != null,
                 supportingText = versionNameError?.let { { Text(it) } },
                 singleLine = true,
@@ -228,6 +207,80 @@ fun AdminCreateVersionScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Release Tag
+            OutlinedTextField(
+                value = releaseTag,
+                onValueChange = {
+                    releaseTag = it.trim()
+                    if (releaseTagError != null) releaseTagError = null
+                },
+                label = { Text("Release Tag (e.g. v1.1.0) *") },
+                placeholder = { Text("v1.1.0") },
+                isError = releaseTagError != null,
+                supportingText = releaseTagError?.let { { Text(it) } },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // APK Download URL (GitHub Releases)
+            OutlinedTextField(
+                value = apkUrl,
+                onValueChange = {
+                    apkUrl = it.trim()
+                    if (apkUrlError != null) apkUrlError = null
+                },
+                label = { Text("APK Download URL (GitHub Releases) *") },
+                placeholder = { Text("https://github.com/OWNER/REPO/releases/download/v1.1.0/app-release.apk") },
+                isError = apkUrlError != null,
+                supportingText = {
+                    if (apkUrlError != null) {
+                        Text(apkUrlError!!)
+                    } else {
+                        Text("Direct asset download link from a published GitHub Release")
+                    }
+                },
+                singleLine = false,
+                maxLines = 3,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Info Card about GitHub Releases
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Build your APK, create a GitHub Release with tag matching above, attach the APK asset, and paste the direct download URL here.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Release Notes / Changelog
+            OutlinedTextField(
+                value = releaseNotes,
+                onValueChange = { releaseNotes = it },
+                label = { Text("Release Notes / Changelog") },
+                placeholder = { Text("• Bug fixes and performance improvements\n• New feature...") },
+                minLines = 3,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             // Minimum Android SDK
             OutlinedTextField(
                 value = minAndroidText,
@@ -238,125 +291,6 @@ fun AdminCreateVersionScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-
-            // Changelog
-            OutlinedTextField(
-                value = changelog,
-                onValueChange = { changelog = it },
-                label = { Text("Changelog / What's New") },
-                placeholder = { Text("• Bug fixes and performance improvements\n• New feature...") },
-                minLines = 3,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // APK File Selection Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "APK Package Binary",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    if (selectedApkFileName != null) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Android, contentDescription = null, tint = InstallGreenLight)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = selectedApkFileName ?: "Selected APK",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                val mb = selectedApkSizeBytes.toDouble() / (1024 * 1024)
-                                Text(
-                                    text = String.format("%.1f MB", mb),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        when (val state = uploadState) {
-                            is UploadState.Uploading -> {
-                                LinearProgressIndicator(
-                                    progress = { state.progress / 100f },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = InstallGreenLight
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(state.message, style = MaterialTheme.typography.labelSmall)
-                                    IconButton(onClick = { cancelApkUpload() }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Cancel upload")
-                                    }
-                                }
-                            }
-
-                            is UploadState.Success -> {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = InstallGreenLight)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "APK uploaded to Firebase Storage successfully!",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = InstallGreenLight,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            is UploadState.Failed -> {
-                                Text(
-                                    text = "Upload Error: ${state.message}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(onClick = { startApkUpload() }) {
-                                    Text("Retry Upload")
-                                }
-                            }
-
-                            UploadState.Idle -> {
-                                Button(
-                                    onClick = { startApkUpload() },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.CloudUpload, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Upload APK to Firebase Storage")
-                                }
-                            }
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = { apkPickerLauncher.launch("application/vnd.android.package-archive") },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Android, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Select APK File from Device")
-                        }
-                    }
-                }
-            }
 
             // Publish Switch
             Row(
@@ -388,12 +322,6 @@ fun AdminCreateVersionScreen(
             Button(
                 onClick = {
                     if (!validate()) return@Button
-                    if (uploadedApkUrl.isBlank() && uploadState !is UploadState.Success) {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Please upload the APK file before publishing this version")
-                        }
-                        return@Button
-                    }
 
                     isSavingVersion = true
                     coroutineScope.launch {
@@ -402,11 +330,13 @@ fun AdminCreateVersionScreen(
                             appId = appId,
                             versionName = versionName.trim(),
                             versionCode = versionCodeText.toLongOrNull() ?: 1L,
-                            apkUrl = uploadedApkUrl,
-                            apkStoragePath = "apps/$appId/versions/$versionId/app.apk",
-                            apkSize = selectedApkSizeBytes,
+                            releaseTag = releaseTag.trim(),
+                            apkUrl = apkUrl.trim(),
+                            releaseNotes = releaseNotes.trim(),
+                            changelog = releaseNotes.trim(),
+                            apkStoragePath = "",
+                            apkSize = 0L,
                             minAndroidVersion = minAndroidText.toIntOrNull() ?: 26,
-                            changelog = changelog.trim(),
                             published = published
                         )
 
@@ -422,7 +352,7 @@ fun AdminCreateVersionScreen(
                         )
                     }
                 },
-                enabled = !isSavingVersion && uploadState !is UploadState.Uploading,
+                enabled = !isSavingVersion,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -441,21 +371,4 @@ fun AdminCreateVersionScreen(
             }
         }
     }
-}
-
-private fun queryFileInfo(context: Context, uri: Uri): Pair<String, Long> {
-    var name = "app.apk"
-    var size = 0L
-    try {
-        val cursor = context.contentResolver.query(uri, null, null, null, null)
-        cursor?.use {
-            if (it.moveToFirst()) {
-                val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                val sizeIndex = it.getColumnIndex(OpenableColumns.SIZE)
-                if (nameIndex != -1) name = it.getString(nameIndex) ?: "app.apk"
-                if (sizeIndex != -1) size = it.getLong(sizeIndex)
-            }
-        }
-    } catch (_: Exception) {}
-    return Pair(name, size)
 }
