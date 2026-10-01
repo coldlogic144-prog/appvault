@@ -22,12 +22,14 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -228,6 +230,29 @@ fun SettingsScreen(
                                 Icon(Icons.Default.AdminPanelSettings, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Open Admin Dashboard")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        } else {
+                            OutlinedButton(
+                                onClick = { viewModel.refreshAdminStatus() },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp),
+                                enabled = !state.isCheckingAdmin
+                            ) {
+                                if (state.isCheckingAdmin) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(if (state.isCheckingAdmin) "Verifying..." else "Recheck Admin Privileges")
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                         }

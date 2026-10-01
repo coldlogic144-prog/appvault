@@ -29,7 +29,7 @@ class AuthRepository(
             _currentUser.value = user
             if (user != null) {
                 scope.launch {
-                    _isAdmin.value = verifyAdminPrivileges(user)
+                    _isAdmin.value = verifyAdminPrivileges(user, forceRefresh = true)
                 }
             } else {
                 _isAdmin.value = false
@@ -45,7 +45,7 @@ class AuthRepository(
         return try {
             val authResult = auth.signInWithEmailAndPassword(email.trim(), password).await()
             val user = authResult.user ?: return Result.failure(Exception("Authentication failed"))
-            val adminStatus = verifyAdminPrivileges(user)
+            val adminStatus = verifyAdminPrivileges(user, forceRefresh = true)
             _isAdmin.value = adminStatus
             Result.success(adminStatus)
         } catch (e: Exception) {
