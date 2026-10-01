@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Check if user has administrator authorization
+    // Verified either by custom claim `admin: true` OR by entry in /admins/{uid}
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Secure Admins collection
+    match /admins/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // Public Categories
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Applications collection
+    match /apps/{appId} {
+      // Anyone can read published apps; admins can read drafts as well
+      allow read: if (resource != null && resource.data.published == true) || isAdmin();
+      
+      // Only admins can create or delete apps
+      allow create, delete: if isAdmin();
+      
+      // Admins can update any field.
+      // Unauthenticated / regular users can ONLY increment downloadCount by 1 (atomic download counter)
+      allow update: if isAdmin() || (
+        resource != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['downloadCount']) &&
+        request.resource.data.downloadCount == resource.data.downloadCount + 1
+      );
+
+      // Versions subcollection
+      match /versions/{versionId} {
+        allow read: if (resource != null && resource.data.published == true) || isAdmin();
+        allow write: if isAdmin();
+      }
+    }
+  }
+}

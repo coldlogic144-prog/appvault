@@ -1,0 +1,12 @@
+{
+  "name": "mmmut-app-store-admin-tools",
+  "version": "1.0.0",
+  "description": "Admin initialization tools for MMMUT App Store",
+  "main": "set-admin.js",
+  "scripts": {
+    "set-admin": "node set-admin.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}

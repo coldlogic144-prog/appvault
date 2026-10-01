@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "994688766053",
+    "project_id": "playstore-d0ba0",
+    "storage_bucket": "playstore-d0ba0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:994688766053:android:0a9c88b30272b2b488f68c",
+        "android_client_info": {
+          "package_name": "com.mmmut.appstore"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAn4MTUhIBPwh9n8pWiDipkUeg6UMQTt10"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
