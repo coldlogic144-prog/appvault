@@ -95,7 +95,7 @@ class UpdatesViewModel(
                 val apkUrl = latest?.apkUrl ?: ""
 
                 if (apkUrl.isBlank()) {
-                    updateDownloadState(item.app.id, DownloadState.Failed("No APK URL available for this version"))
+                    updateDownloadState(item.app.id, DownloadState.Failed("APK link is unavailable."))
                     return@collect
                 }
 
@@ -109,7 +109,10 @@ class UpdatesViewModel(
                         // Increment download count
                         appRepository.incrementDownloadCount(item.app.id)
                         // Trigger installation
-                        apkInstaller.launchInstallIntent(state.file)
+                        val result = apkInstaller.launchInstallIntent(state.file)
+                        result.onFailure {
+                            updateDownloadState(item.app.id, DownloadState.Failed("Download completed, but Android could not start the installer."))
+                        }
                     }
                 }
             }

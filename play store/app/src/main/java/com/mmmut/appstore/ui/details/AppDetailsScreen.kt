@@ -205,13 +205,13 @@ fun AppDetailsScreen(
                         )
                     }
 
-                    // What's New / Changelog
-                    state.latestVersion?.changelog?.let { changelog ->
-                        if (changelog.isNotBlank()) {
+                    // What's New / Changelog / Release Notes
+                    state.latestVersion?.displayNotes?.let { notes ->
+                        if (notes.isNotBlank()) {
                             item {
                                 ChangelogCard(
                                     versionName = state.latestVersion?.versionName ?: app.latestVersionName,
-                                    changelog = changelog
+                                    changelog = notes
                                 )
                             }
                         }
@@ -451,6 +451,38 @@ private fun ActionButtonsSection(
                                 Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("OPEN", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                } else if (state.latestVersion == null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                            Column {
+                                Text(
+                                    text = "No Published Version",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "This application has not published any public APK releases yet.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }

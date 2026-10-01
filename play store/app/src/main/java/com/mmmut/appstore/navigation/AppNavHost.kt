@@ -260,7 +260,6 @@ fun AppNavHost(
                 AdminCreateVersionScreen(
                     appId = appId,
                     appRepository = container.appRepository,
-                    storageRepository = container.storageRepository,
                     onSuccess = { navController.popBackStack() },
                     onBackClick = { navController.popBackStack() }
                 )

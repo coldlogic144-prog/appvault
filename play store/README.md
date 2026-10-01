@@ -12,7 +12,7 @@ Built following modern Android architectural standards:
 - **State Management**: MVVM Pattern with `ViewModel` and `StateFlow`.
 - **Domain & Data Layer**: Repository Pattern (`AppRepository`, `AuthRepository`, `StorageRepository`, `NetworkMonitor`).
 - **Downloader & Installer**: Custom `ApkDownloader` (with buffered percentage progress tracking) and `ApkInstaller` using Android's `FileProvider` and `ACTION_VIEW` package installer intent.
-- **Backend**: Firebase Authentication (Email/Password + Custom Claims), Cloud Firestore (Offline persistence enabled), and Firebase Storage.
+- **Backend**: Firebase Authentication (Email/Password + Custom Claims), Cloud Firestore (App & version metadata), and GitHub Releases (APK hosting & distribution).
 
 ```
 app/
@@ -28,7 +28,7 @@ app/
  │   ├── repository/
  │   │   ├── AppRepository.kt       # Firestore CRUD & atomic counters
  │   │   ├── AuthRepository.kt      # Firebase Auth & admin validation
- │   │   ├── StorageRepository.kt   # Firebase Storage APK & image uploads
+ │   │   ├── StorageRepository.kt   # Firebase Storage image uploads (icons & screenshots)
  │   │   └── NetworkMonitor.kt      # ConnectivityManager state stream
  │   └── installer/
  │       ├── ApkDownloader.kt       # Resilient buffered downloader
@@ -84,10 +84,9 @@ app/
   - `appId`: String
   - `versionName`: String (e.g., "1.2.0")
   - `versionCode`: Long (e.g., 2)
-  - `apkUrl`: String (Firebase Storage download URL)
-  - `apkStoragePath`: String
-  - `apkSize`: Long
-  - `minAndroidVersion`: Int
+  - `releaseTag`: String (e.g., "v1.2.0")
+  - `apkUrl`: String (GitHub Releases asset direct download URL)
+  - `releaseNotes`: String
   - `changelog`: String
   - `published`: Boolean
   - `createdAt`: Timestamp
@@ -97,10 +96,12 @@ app/
   - `role`: "admin"
   - `grantedAt`: Timestamp
 
-### B. Firebase Storage Structure
-- `apps/{appId}/icon/{filename}.png` (App Icon)
-- `apps/{appId}/screenshots/{filename}.png` (App Screenshots)
-- `apps/{appId}/versions/{versionId}/app.apk` (Raw APK Binary)
+### B. Asset Hosting Structure
+- **Firebase Storage**:
+  - `apps/{appId}/icon/{filename}.png` (App Icon)
+  - `apps/{appId}/screenshots/{filename}.png` (App Screenshots)
+- **GitHub Releases**:
+  - `https://github.com/{owner}/{repo}/releases/download/{tag}/{file}.apk` (APK Binaries)
 
 ---
 
@@ -186,7 +187,7 @@ service cloud.firestore {
 ## 5. APK Installation Flow
 
 1. User selects an app from the Store and taps **[INSTALL]** or **[UPDATE]**.
-2. AppVault downloads the binary from Firebase Storage directly to its isolated cache (`cacheDir/apks/`).
+2. AppVault downloads the binary from GitHub Releases directly to its isolated cache (`cacheDir/apks/`).
 3. Upon completion, AppVault securely generates a content URI using `androidx.core.content.FileProvider`.
 4. It issues an `Intent.ACTION_VIEW` with MIME type `application/vnd.android.package-archive` and `FLAG_GRANT_READ_URI_PERMISSION`.
 5. If Android 8.0+ has not granted "Install unknown apps" permission to AppVault, the user is cleanly prompted with a dialog to allow it in Settings.

@@ -93,9 +93,15 @@ class AppDetailsViewModel(
     fun installOrUpdateApp() {
         val app = _uiState.value.app ?: return
         val version = _uiState.value.latestVersion
-        if (version == null || version.apkUrl.isBlank()) {
+        if (version == null) {
             _uiState.update {
-                it.copy(downloadState = DownloadState.Failed("No valid APK available for download"))
+                it.copy(downloadState = DownloadState.Failed("No published version exists for this application."))
+            }
+            return
+        }
+        if (version.apkUrl.isBlank()) {
+            _uiState.update {
+                it.copy(downloadState = DownloadState.Failed("APK link is unavailable."))
             }
             return
         }
@@ -116,9 +122,9 @@ class AppDetailsViewModel(
                     // Trigger package installation intent
                     _uiState.update { it.copy(downloadState = DownloadState.Installing) }
                     val result = apkInstaller.launchInstallIntent(state.file)
-                    result.onFailure { err ->
+                    result.onFailure { _ ->
                         _uiState.update {
-                            it.copy(downloadState = DownloadState.Failed("Could not launch installer: ${err.localizedMessage}"))
+                            it.copy(downloadState = DownloadState.Failed("Download completed, but Android could not start the installer."))
                         }
                     }
                 }

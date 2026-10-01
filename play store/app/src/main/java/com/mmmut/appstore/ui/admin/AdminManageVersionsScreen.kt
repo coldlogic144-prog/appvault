@@ -264,16 +264,27 @@ private fun VersionItemCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            val tag = if (version.releaseTag.isNotBlank()) "Tag: ${version.releaseTag} • " else ""
             Text(
-                text = "${version.formattedSize} • ${version.minAndroidVersionText}",
+                text = "$tag${version.minAndroidVersionText}",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.outline
             )
 
-            if (version.changelog.isNotBlank()) {
+            if (version.apkUrl.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = version.apkUrl,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
+                )
+            }
+
+            if (version.displayNotes.isNotBlank()) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = version.changelog,
+                    text = version.displayNotes,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
