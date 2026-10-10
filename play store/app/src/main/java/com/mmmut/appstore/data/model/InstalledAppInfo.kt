@@ -7,5 +7,6 @@ data class InstalledAppInfo(
     val isInstalled: Boolean,
     val hasUpdate: Boolean,
     val latestStoreVersionName: String = "",
-    val latestStoreVersionCode: Long = 0L
+    val latestStoreVersionCode: Long = 0L,
+    val resolvedPackageName: String = packageName
 )

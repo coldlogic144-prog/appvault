@@ -1,20 +1,20 @@
 -- Merging decision tree log ---
 provider#androidx.core.content.FileProvider
-INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:42:9-50:20
+INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:66:9-74:20
 	android:grantUriPermissions
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:46:13-47
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:70:13-47
 	android:authorities
 		INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:44:13-64
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:68:13-64
 	android:exported
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:45:13-37
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:69:13-37
 	android:name
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:43:13-62
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:67:13-62
 manifest
-ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:2:1-54:12
-INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:2:1-54:12
-INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:2:1-54:12
-INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:2:1-54:12
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:2:1-78:12
+INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:2:1-78:12
+INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:2:1-78:12
+INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:2:1-78:12
 MERGED from [androidx.navigation:navigation-common:2.8.2] C:\Users\Tanish\.gradle\caches\transforms-4\b981494b690200cef73adffcaff11b57\transformed\navigation-common-2.8.2\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.navigation:navigation-runtime:2.8.2] C:\Users\Tanish\.gradle\caches\transforms-4\cff5dee4d192a5842c6ebae6062d96b2\transformed\navigation-runtime-2.8.2\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.navigation:navigation-common-ktx:2.8.2] C:\Users\Tanish\.gradle\caches\transforms-4\55b221f23e39a760c5e3d8426e796e3f\transformed\navigation-common-ktx-2.8.2\AndroidManifest.xml:2:1-7:12
@@ -197,9 +197,39 @@ ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:13:5-15:53
 		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:15:9-50
 	android:name
 		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:14:9-61
+queries
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:18:5-39:15
+intent#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:20:9-23:18
+action#android.intent.action.MAIN
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:21:13-65
+	android:name
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:21:21-62
+category#android.intent.category.LAUNCHER
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:22:13-73
+	android:name
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:22:23-70
+intent#action:name:android.intent.action.MAIN
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:24:9-26:18
+intent#action:name:android.intent.action.VIEW+data:scheme:package
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:27:9-30:18
+action#android.intent.action.VIEW
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:28:13-65
+	android:name
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:28:21-62
+data
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:29:13-46
+	android:scheme
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:29:19-43
+	android:mimeType
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:37:19-77
+intent#action:name:android.intent.action.VIEW+data:scheme:https
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:31:9-34:18
+intent#action:name:android.intent.action.VIEW+data:mimeType:application/vnd.android.package-archive
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:35:9-38:18
 application
-ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:17:5-52:19
-INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:17:5-52:19
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:41:5-76:19
+INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:41:5-76:19
 MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\Tanish\.gradle\caches\transforms-4\249ef940f367df7acf08911702a2bf95\transformed\emoji2-1.3.0\AndroidManifest.xml:23:5-33:19
 MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\Tanish\.gradle\caches\transforms-4\249ef940f367df7acf08911702a2bf95\transformed\emoji2-1.3.0\AndroidManifest.xml:23:5-33:19
 MERGED from [com.google.firebase:firebase-auth-ktx:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\ca204109614442e21aa3dc2b4011fe11\transformed\firebase-auth-ktx-23.0.0\AndroidManifest.xml:7:5-15:19
@@ -281,53 +311,45 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\Tanish\.gradle\cac
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.13.1] C:\Users\Tanish\.gradle\caches\transforms-4\6b5a1db024bd56246c9c8fff93b35669\transformed\core-1.13.1\AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:25:9-35
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:49:9-35
 	android:label
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:23:9-41
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:47:9-41
 	android:fullBackupContent
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:21:9-52
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:45:9-52
 	android:roundIcon
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:24:9-54
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:48:9-54
 	tools:targetApi
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:27:9-29
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:51:9-29
 	android:icon
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:22:9-43
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:46:9-43
 	android:allowBackup
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:19:9-35
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:43:9-35
 	android:theme
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:26:9-46
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:50:9-46
 	android:dataExtractionRules
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:20:9-54
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:44:9-54
 	android:name
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:18:9-44
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:42:9-44
 activity#com.mmmut.appstore.MainActivity
-ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:29:9-39:20
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:53:9-63:20
 	android:windowSoftInputMode
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:34:13-55
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:58:13-55
 	android:exported
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:31:13-36
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:55:13-36
 	android:configChanges
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:32:13-87
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:56:13-87
 	android:theme
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:33:13-50
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:57:13-50
 	android:name
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:30:13-41
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:54:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:35:13-38:29
-action#android.intent.action.MAIN
-ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:36:17-69
-	android:name
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:36:25-66
-category#android.intent.category.LAUNCHER
-ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:37:17-77
-	android:name
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:37:27-74
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:59:13-62:29
 meta-data#android.support.FILE_PROVIDER_PATHS
-ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:47:13-49:54
+ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:71:13-73:54
 	android:resource
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:49:17-51
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:73:17-51
 	android:name
-		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:48:17-67
+		ADDED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml:72:17-67
 uses-sdk
 INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from D:\web\mmmut\play store\app\src\main\AndroidManifest.xml
@@ -644,10 +666,6 @@ ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\ca
 		ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:30:13-80
 intent-filter#action:name:android.intent.action.VIEW+category:name:android.intent.category.BROWSABLE+category:name:android.intent.category.DEFAULT+data:host:firebase.auth+data:path:/+data:scheme:genericidp
 ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:35:13-45:29
-action#android.intent.action.VIEW
-ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:36:17-69
-	android:name
-		ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:36:25-66
 category#android.intent.category.DEFAULT
 ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:38:17-76
 	android:name
@@ -656,14 +674,6 @@ category#android.intent.category.BROWSABLE
 ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:39:17-78
 	android:name
 		ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:39:27-75
-data
-ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:41:17-44:51
-	android:path
-		ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:43:21-37
-	android:host
-		ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:42:21-49
-	android:scheme
-		ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:44:21-48
 activity#com.google.firebase.auth.internal.RecaptchaActivity
 ADDED from [com.google.firebase:firebase-auth:23.0.0] C:\Users\Tanish\.gradle\caches\transforms-4\b7dd8cb4215a157ab57ef8c7f0fe5e77\transformed\firebase-auth-23.0.0\AndroidManifest.xml:47:9-64:20
 	android:excludeFromRecents

@@ -35,6 +35,7 @@ class AppsViewModel(
     val uiState: StateFlow<AppsUiState> = _uiState.asStateFlow()
 
     private var rawApps: List<AppItem> = emptyList()
+    private var loadJob: kotlinx.coroutines.Job? = null
 
     init {
         loadApps()
@@ -42,7 +43,8 @@ class AppsViewModel(
 
     fun loadApps(categoryId: String = _uiState.value.selectedCategoryId) {
         _uiState.update { it.copy(isLoading = true, selectedCategoryId = categoryId, errorMessage = null) }
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             appRepository.getAllApps(categoryId).collect { result ->
                 result.fold(
                     onSuccess = { list ->

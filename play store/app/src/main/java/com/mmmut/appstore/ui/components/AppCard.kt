@@ -49,8 +49,18 @@ fun AppListItem(
     ) {
         // App Icon
         if (app.iconUrl.isNotBlank()) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val iconRequest = androidx.compose.runtime.remember(app.iconUrl) {
+                coil.request.ImageRequest.Builder(context)
+                    .data(app.iconUrl)
+                    .size(112, 112)
+                    .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .crossfade(false)
+                    .build()
+            }
             AsyncImage(
-                model = app.iconUrl,
+                model = iconRequest,
                 contentDescription = app.name,
                 modifier = Modifier
                     .size(56.dp)
@@ -161,8 +171,18 @@ fun AppMiniCard(
             horizontalAlignment = Alignment.Start
         ) {
             if (app.iconUrl.isNotBlank()) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val iconRequest = androidx.compose.runtime.remember(app.iconUrl) {
+                    coil.request.ImageRequest.Builder(context)
+                        .data(app.iconUrl)
+                        .size(120, 120)
+                        .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                        .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                        .crossfade(false)
+                        .build()
+                }
                 AsyncImage(
-                    model = app.iconUrl,
+                    model = iconRequest,
                     contentDescription = app.name,
                     modifier = Modifier
                         .size(60.dp)

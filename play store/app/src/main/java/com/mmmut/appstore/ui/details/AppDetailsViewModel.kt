@@ -47,40 +47,61 @@ class AppDetailsViewModel(
     fun loadDetails() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            appRepository.getAppDetails(appId).collect { appResult ->
+            kotlinx.coroutines.flow.combine(
+                appRepository.getAppDetails(appId),
+                appRepository.getAppVersions(appId)
+            ) { appResult, versionsResult ->
                 val app = appResult.getOrNull()
                 if (app == null) {
-                    _uiState.update {
-                        it.copy(isLoading = false, errorMessage = "Application not found")
-                    }
-                    return@collect
+                    val error = appResult.exceptionOrNull()?.localizedMessage ?: "Application not found"
+                    _uiState.update { it.copy(isLoading = false, errorMessage = error) }
+                    return@combine
                 }
 
                 // Check installation status
                 val installed = apkInstaller.getInstalledAppInfo(
                     packageName = app.packageName,
                     storeVersionName = app.latestVersionName,
-                    storeVersionCode = app.latestVersionCode
+                    storeVersionCode = app.latestVersionCode,
+                    appName = app.name,
+                    appId = app.id
                 )
 
-                // Load version changelog and APK info
-                appRepository.getAppVersions(appId).collect { versionsResult ->
-                    val versions = versionsResult.getOrDefault(emptyList())
-                    val latest = versions.firstOrNull { it.published }
-                    val canInstall = apkInstaller.canRequestPackageInstalls()
+                val versions = versionsResult.getOrDefault(emptyList())
+                val latest = versions.firstOrNull { it.published }
+                val canInstall = apkInstaller.canRequestPackageInstalls()
 
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            app = app,
-                            latestVersion = latest,
-                            allVersions = versions,
-                            installedInfo = installed,
-                            canRequestInstalls = canInstall
-                        )
-                    }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        app = app,
+                        latestVersion = latest,
+                        allVersions = versions,
+                        installedInfo = installed,
+                        canRequestInstalls = canInstall,
+                        errorMessage = null
+                    )
                 }
-            }
+            }.collect {}
+        }
+    }
+
+    fun refreshInstallStatus() {
+        val app = _uiState.value.app ?: return
+        val installed = apkInstaller.getInstalledAppInfo(
+            packageName = app.packageName,
+            storeVersionName = app.latestVersionName,
+            storeVersionCode = app.latestVersionCode,
+            appName = app.name,
+            appId = app.id
+        )
+        val canInstall = apkInstaller.canRequestPackageInstalls()
+        _uiState.update {
+            it.copy(
+                installedInfo = installed,
+                canRequestInstalls = canInstall,
+                downloadState = if (installed.isInstalled && it.downloadState is DownloadState.Installing) DownloadState.Idle else it.downloadState
+            )
         }
     }
 
@@ -121,7 +142,7 @@ class AppDetailsViewModel(
 
                     // Trigger package installation intent
                     _uiState.update { it.copy(downloadState = DownloadState.Installing) }
-                    val result = apkInstaller.launchInstallIntent(state.file)
+                    val result = apkInstaller.launchInstallIntent(state.file, app.id)
                     result.onFailure { _ ->
                         _uiState.update {
                             it.copy(downloadState = DownloadState.Failed("Download completed, but Android could not start the installer."))
@@ -139,7 +160,8 @@ class AppDetailsViewModel(
 
     fun openInstalledApp() {
         val app = _uiState.value.app ?: return
-        apkInstaller.launchApp(app.packageName)
+        val targetPkg = _uiState.value.installedInfo?.resolvedPackageName?.ifBlank { app.packageName } ?: app.packageName
+        apkInstaller.launchApp(targetPkg)
     }
 
     class Factory(

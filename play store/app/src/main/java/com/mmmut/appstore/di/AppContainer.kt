@@ -24,10 +24,10 @@ class AppContainer(val context: Context) {
 
     val firestore: FirebaseFirestore by lazy {
         FirebaseFirestore.getInstance().apply {
-            // Enable offline persistence caching
+            // Enable offline persistence caching with bounded 40 MB size to prevent flash storage bloat
             firestoreSettings = FirebaseFirestoreSettings.Builder()
                 .setPersistenceEnabled(true)
-                .setCacheSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
+                .setCacheSizeBytes(40L * 1024 * 1024)
                 .build()
         }
     }
@@ -49,7 +49,7 @@ class AppContainer(val context: Context) {
     }
 
     val storageRepository: StorageRepository by lazy {
-        StorageRepository(storage)
+        StorageRepository(context, storage)
     }
 
     val apkDownloader: ApkDownloader by lazy {

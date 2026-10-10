@@ -63,8 +63,18 @@ fun FeaturedAppCard(
             ) {
                 // App Icon
                 if (app.iconUrl.isNotBlank()) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val iconRequest = androidx.compose.runtime.remember(app.iconUrl) {
+                        coil.request.ImageRequest.Builder(context)
+                            .data(app.iconUrl)
+                            .size(136, 136)
+                            .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                            .crossfade(false)
+                            .build()
+                    }
                     AsyncImage(
-                        model = app.iconUrl,
+                        model = iconRequest,
                         contentDescription = app.name,
                         modifier = Modifier
                             .size(68.dp)

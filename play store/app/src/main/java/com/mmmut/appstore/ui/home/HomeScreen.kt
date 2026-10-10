@@ -147,14 +147,12 @@ fun HomeScreen(
                                     actionText = "See all",
                                     onActionClick = { onNavigateToApps(null) }
                                 )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState())
-                                        .padding(horizontal = 16.dp),
+                                androidx.compose.foundation.lazy.LazyRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    state.recentlyAddedApps.forEach { app ->
+                                    items(state.recentlyAddedApps, key = { it.id }) { app ->
                                         AppMiniCard(
                                             app = app,
                                             onClick = { onAppClick(app.id) }
@@ -173,14 +171,12 @@ fun HomeScreen(
                                     actionText = "See all",
                                     onActionClick = { onNavigateToApps(null) }
                                 )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState())
-                                        .padding(horizontal = 16.dp),
+                                androidx.compose.foundation.lazy.LazyRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    state.recentlyUpdatedApps.forEach { app ->
+                                    items(state.recentlyUpdatedApps, key = { it.id }) { app ->
                                         AppMiniCard(
                                             app = app,
                                             onClick = { onAppClick(app.id) }

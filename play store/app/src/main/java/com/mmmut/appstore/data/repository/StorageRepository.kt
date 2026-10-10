@@ -1,5 +1,6 @@
 package com.mmmut.appstore.data.repository
 
+import android.content.Context
 import android.net.Uri
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
@@ -10,17 +11,33 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
-class StorageRepository(private val storage: FirebaseStorage) {
+class StorageRepository(
+    private val context: Context,
+    private val storage: FirebaseStorage
+) {
+
+    private fun getMimeTypeAndExtension(uri: Uri): Pair<String, String> {
+        val type = context.contentResolver.getType(uri) ?: "image/png"
+        val ext = when (type.lowercase()) {
+            "image/jpeg", "image/jpg" -> "jpg"
+            "image/webp" -> "webp"
+            "image/gif" -> "gif"
+            "image/svg+xml" -> "svg"
+            else -> "png"
+        }
+        return Pair(type, ext)
+    }
 
     /**
      * Uploads an application icon image.
      */
     fun uploadAppIcon(appId: String, uri: Uri): Flow<UploadState> = callbackFlow {
         trySend(UploadState.Uploading(0, "Preparing icon upload..."))
-        val filename = "icon_${System.currentTimeMillis()}.png"
+        val (mimeType, ext) = getMimeTypeAndExtension(uri)
+        val filename = "icon_${System.currentTimeMillis()}_${(1000..9999).random()}.$ext"
         val ref: StorageReference = storage.reference.child("apps/$appId/icon/$filename")
         val metadata = StorageMetadata.Builder()
-            .setContentType("image/png")
+            .setContentType(mimeType)
             .build()
 
         val uploadTask = ref.putFile(uri, metadata)
@@ -36,11 +53,11 @@ class StorageRepository(private val storage: FirebaseStorage) {
                 trySend(UploadState.Success(downloadUri.toString()))
                 close()
             }.addOnFailureListener { e ->
-                trySend(UploadState.Failed("Failed to get icon URL: ${e.localizedMessage}"))
+                trySend(UploadState.Failed("Failed to get icon URL: ${e.localizedMessage ?: "Unknown error"}"))
                 close()
             }
         }.addOnFailureListener { e ->
-            trySend(UploadState.Failed("Icon upload failed: ${e.localizedMessage}"))
+            trySend(UploadState.Failed("Icon upload failed: ${e.localizedMessage ?: "Storage error. Ensure Storage is enabled."}"))
             close()
         }
 
@@ -56,10 +73,11 @@ class StorageRepository(private val storage: FirebaseStorage) {
      */
     fun uploadScreenshot(appId: String, uri: Uri): Flow<UploadState> = callbackFlow {
         trySend(UploadState.Uploading(0, "Preparing screenshot upload..."))
-        val filename = "screenshot_${System.currentTimeMillis()}.png"
+        val (mimeType, ext) = getMimeTypeAndExtension(uri)
+        val filename = "screenshot_${System.currentTimeMillis()}_${(1000..9999).random()}.$ext"
         val ref: StorageReference = storage.reference.child("apps/$appId/screenshots/$filename")
         val metadata = StorageMetadata.Builder()
-            .setContentType("image/png")
+            .setContentType(mimeType)
             .build()
 
         val uploadTask = ref.putFile(uri, metadata)
@@ -75,11 +93,11 @@ class StorageRepository(private val storage: FirebaseStorage) {
                 trySend(UploadState.Success(downloadUri.toString()))
                 close()
             }.addOnFailureListener { e ->
-                trySend(UploadState.Failed("Failed to get screenshot URL: ${e.localizedMessage}"))
+                trySend(UploadState.Failed("Failed to get screenshot URL: ${e.localizedMessage ?: "Unknown error"}"))
                 close()
             }
         }.addOnFailureListener { e ->
-            trySend(UploadState.Failed("Screenshot upload failed: ${e.localizedMessage}"))
+            trySend(UploadState.Failed("Screenshot upload failed: ${e.localizedMessage ?: "Storage error. Ensure Storage is enabled."}"))
             close()
         }
 

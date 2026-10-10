@@ -15,3 +15,10 @@
     <init>(...);
 }
 -keep class com.mmmut.appstore.data.model.** { *; }
+
+# Coil image loading
+-dontwarn coil.**
+-keep class coil.** { *; }
+
+# Coroutines
+-dontwarn kotlinx.coroutines.**

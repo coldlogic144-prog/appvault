@@ -107,18 +107,23 @@ fun AdminCreateEditAppScreen(
     var packageNameError by remember { mutableStateOf<String?>(null) }
     var descriptionError by remember { mutableStateOf<String?>(null) }
 
+    var existingApp by remember { mutableStateOf<AppItem?>(null) }
+    var initialLoadDone by remember { mutableStateOf(false) }
+    var localIconUri by remember { mutableStateOf<Uri?>(null) }
+
     // Temporary working appId (for Storage directory paths)
     val workingAppId = remember(appId) {
         appId ?: "app_${System.currentTimeMillis()}"
     }
 
-    // Load existing app if editing
+    // Load existing app if editing (only once to avoid wiping edits on snapshot emission)
     LaunchedEffect(appId) {
-        if (appId != null) {
+        if (appId != null && !initialLoadDone) {
             appRepository.getAppDetails(appId).collect { result ->
                 isLoadingApp = false
                 val existing = result.getOrNull()
-                if (existing != null) {
+                if (existing != null && !initialLoadDone) {
+                    existingApp = existing
                     name = existing.name
                     packageName = existing.packageName
                     developer = existing.developer
@@ -129,6 +134,7 @@ fun AdminCreateEditAppScreen(
                     screenshots = existing.screenshots
                     featured = existing.featured
                     published = existing.published
+                    initialLoadDone = true
                 }
             }
         }
@@ -139,11 +145,19 @@ fun AdminCreateEditAppScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
+            localIconUri = uri
             coroutineScope.launch {
                 storageRepository.uploadAppIcon(workingAppId, uri).collect { state ->
                     iconUploadState = state
-                    if (state is UploadState.Success) {
-                        iconUrl = state.downloadUrl
+                    when (state) {
+                        is UploadState.Success -> {
+                            iconUrl = state.downloadUrl
+                            snackbarHostState.showSnackbar("Icon uploaded successfully")
+                        }
+                        is UploadState.Failed -> {
+                            snackbarHostState.showSnackbar("Icon upload error: ${state.message}")
+                        }
+                        else -> {}
                     }
                 }
             }
@@ -158,11 +172,18 @@ fun AdminCreateEditAppScreen(
                 for (uri in uris) {
                     storageRepository.uploadScreenshot(workingAppId, uri).collect { state ->
                         screenshotUploadState = state
-                        if (state is UploadState.Success) {
-                            screenshots = screenshots + state.downloadUrl
+                        when (state) {
+                            is UploadState.Success -> {
+                                screenshots = screenshots + state.downloadUrl
+                            }
+                            is UploadState.Failed -> {
+                                snackbarHostState.showSnackbar("Screenshot upload error: ${state.message}")
+                            }
+                            else -> {}
                         }
                     }
                 }
+                snackbarHostState.showSnackbar("Finished processing screenshots")
             }
         }
     }
@@ -325,7 +346,16 @@ fun AdminCreateEditAppScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    if (iconUrl.isNotBlank()) {
+                    if (localIconUri != null) {
+                        AsyncImage(
+                            model = localIconUri,
+                            contentDescription = "Icon preview",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(16.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else if (iconUrl.isNotBlank()) {
                         AsyncImage(
                             model = iconUrl,
                             contentDescription = "Icon preview",
@@ -363,6 +393,14 @@ fun AdminCreateEditAppScreen(
                                 modifier = Modifier.width(160.dp)
                             )
                             Text(up.message, style = MaterialTheme.typography.labelSmall)
+                        } else if (iconUploadState is UploadState.Failed) {
+                            val failed = iconUploadState as UploadState.Failed
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = failed.message,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
@@ -386,6 +424,13 @@ fun AdminCreateEditAppScreen(
                     val up = screenshotUploadState as UploadState.Uploading
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     Text(up.message, style = MaterialTheme.typography.labelSmall)
+                } else if (screenshotUploadState is UploadState.Failed) {
+                    val failed = screenshotUploadState as UploadState.Failed
+                    Text(
+                        text = failed.message,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
 
                 if (screenshots.isNotEmpty()) {
@@ -493,7 +538,14 @@ fun AdminCreateEditAppScreen(
                                 iconUrl = iconUrl,
                                 screenshots = screenshots,
                                 featured = featured,
-                                published = published
+                                published = published,
+                                downloadCount = existingApp?.downloadCount ?: 0L,
+                                latestVersionId = existingApp?.latestVersionId ?: "",
+                                latestVersionName = existingApp?.latestVersionName ?: "1.0.0",
+                                latestVersionCode = existingApp?.latestVersionCode ?: 1L,
+                                minAndroidVersion = existingApp?.minAndroidVersion ?: 26,
+                                apkSize = existingApp?.apkSize ?: 0L,
+                                createdAt = existingApp?.createdAt
                             )
 
                             val result = if (appId != null) {

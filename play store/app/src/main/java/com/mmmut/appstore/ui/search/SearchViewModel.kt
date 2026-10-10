@@ -36,10 +36,13 @@ class SearchViewModel(
         loadAllApps()
     }
 
+    private var searchJob: kotlinx.coroutines.Job? = null
+
     private fun loadAllApps() {
         _uiState.update { it.copy(isLoading = true) }
-        viewModelScope.launch {
-            appRepository.getAllApps(null).collect { result ->
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            appRepository.publishedAppsFlow.collect { result ->
                 result.fold(
                     onSuccess = { list ->
                         allPublishedApps = list

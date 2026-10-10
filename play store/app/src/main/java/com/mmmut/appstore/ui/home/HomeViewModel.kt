@@ -7,6 +7,7 @@ import com.mmmut.appstore.data.model.AppItem
 import com.mmmut.appstore.data.model.Category
 import com.mmmut.appstore.data.repository.AppRepository
 import com.mmmut.appstore.data.repository.NetworkMonitor
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +35,9 @@ class HomeViewModel(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private var rawPublishedApps: List<AppItem> = emptyList()
+    private var dataLoadJob: Job? = null
+
     init {
         observeNetwork()
         loadData()
@@ -49,48 +53,52 @@ class HomeViewModel(
 
     fun loadData() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            combine(
-                appRepository.getFeaturedApps(),
-                appRepository.getRecentlyAddedApps(),
-                appRepository.getRecentlyUpdatedApps(),
-                appRepository.getAllApps(_uiState.value.selectedCategoryId)
-            ) { featuredRes, recentRes, updatedRes, allRes ->
-                val error = featuredRes.exceptionOrNull()
-                    ?: recentRes.exceptionOrNull()
-                    ?: updatedRes.exceptionOrNull()
-                    ?: allRes.exceptionOrNull()
-
-                HomeUiState(
-                    isLoading = false,
-                    featuredApps = featuredRes.getOrDefault(emptyList()),
-                    recentlyAddedApps = recentRes.getOrDefault(emptyList()),
-                    recentlyUpdatedApps = updatedRes.getOrDefault(emptyList()),
-                    allApps = allRes.getOrDefault(emptyList()),
-                    categories = Category.DEFAULT_CATEGORIES,
-                    selectedCategoryId = _uiState.value.selectedCategoryId,
-                    isOnline = _uiState.value.isOnline,
-                    errorMessage = error?.localizedMessage
+        dataLoadJob?.cancel()
+        dataLoadJob = viewModelScope.launch {
+            appRepository.publishedAppsFlow.collect { result ->
+                result.fold(
+                    onSuccess = { apps ->
+                        rawPublishedApps = apps
+                        updateUiStateWithApps(apps, _uiState.value.selectedCategoryId)
+                    },
+                    onFailure = { error ->
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                errorMessage = error.localizedMessage
+                            )
+                        }
+                    }
                 )
-            }.collect { newState ->
-                _uiState.value = newState
             }
         }
     }
 
     fun selectCategory(categoryId: String) {
         _uiState.update { it.copy(selectedCategoryId = categoryId) }
-        viewModelScope.launch {
-            appRepository.getAllApps(categoryId).collect { result ->
-                result.fold(
-                    onSuccess = { apps ->
-                        _uiState.update { it.copy(allApps = apps) }
-                    },
-                    onFailure = { error ->
-                        _uiState.update { it.copy(errorMessage = error.localizedMessage) }
-                    }
-                )
-            }
+        updateUiStateWithApps(rawPublishedApps, categoryId)
+    }
+
+    private fun updateUiStateWithApps(apps: List<AppItem>, categoryId: String) {
+        val featured = apps.filter { it.featured }.take(10)
+        val recent = apps.sortedByDescending { it.createdAt?.seconds ?: 0L }.take(10)
+        val updated = apps.sortedByDescending { it.updatedAt?.seconds ?: 0L }.take(10)
+        val filtered = if (categoryId.isBlank() || categoryId.equals("all", ignoreCase = true)) {
+            apps
+        } else {
+            apps.filter { it.categoryId.equals(categoryId, ignoreCase = true) }
+        }
+
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                featuredApps = featured,
+                recentlyAddedApps = recent,
+                recentlyUpdatedApps = updated,
+                allApps = filtered,
+                selectedCategoryId = categoryId,
+                errorMessage = null
+            )
         }
     }
 

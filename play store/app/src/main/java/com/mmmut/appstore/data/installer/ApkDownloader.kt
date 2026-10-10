@@ -31,15 +31,14 @@ class ApkDownloader(private val context: Context) {
             return@flow
         }
 
+        var tempFile: File? = null
         try {
             val apkDir = File(context.cacheDir, "apks").apply {
                 if (!exists()) mkdirs()
             }
             val destinationFile = File(apkDir, "${appId}_v${versionCode}.apk")
-
-            if (destinationFile.exists()) {
-                destinationFile.delete()
-            }
+            val partFile = File(apkDir, "${appId}_v${versionCode}.apk.tmp")
+            tempFile = partFile
 
             var currentUrl = trimmedUrl
             var connection: HttpURLConnection? = null
@@ -56,8 +55,8 @@ class ApkDownloader(private val context: Context) {
                 }
 
                 connection = (targetUrl.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 20000
-                    readTimeout = 45000
+                    connectTimeout = 15000
+                    readTimeout = 40000
                     instanceFollowRedirects = true
                     requestMethod = "GET"
                     setRequestProperty("User-Agent", "AppVault-Store/1.0.0 (Android; GitHub-Releases-Downloader)")
@@ -101,62 +100,91 @@ class ApkDownloader(private val context: Context) {
             }
 
             val totalBytes = finalConnection.contentLength.toLong()
-            var bytesDownloaded = 0L
 
-            val inputStream: InputStream = finalConnection.inputStream
-            val outputStream = FileOutputStream(destinationFile)
-
-            val buffer = ByteArray(8 * 1024)
-            var bytesRead: Int
-            var lastEmittedProgress = 0
-
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                outputStream.write(buffer, 0, bytesRead)
-                bytesDownloaded += bytesRead
-
-                if (totalBytes > 0) {
-                    val progress = ((bytesDownloaded * 100) / totalBytes).toInt()
-                    if (progress > lastEmittedProgress) {
-                        lastEmittedProgress = progress
-                        emit(
-                            DownloadState.Downloading(
-                                progress = progress,
-                                bytesDownloaded = bytesDownloaded,
-                                totalBytes = totalBytes
-                            )
-                        )
-                    }
-                } else {
-                    emit(
-                        DownloadState.Downloading(
-                            progress = -1,
-                            bytesDownloaded = bytesDownloaded,
-                            totalBytes = 0
-                        )
-                    )
-                }
-            }
-
-            outputStream.flush()
-            outputStream.close()
-            inputStream.close()
-            finalConnection.disconnect()
-
-            if (!destinationFile.exists() || destinationFile.length() == 0L) {
-                emit(DownloadState.Failed("APK link is unavailable."))
+            // Avoid unnecessary duplicate download if cached file exists with identical size
+            if (destinationFile.exists() && totalBytes > 0 && destinationFile.length() == totalBytes) {
+                finalConnection.disconnect()
+                emit(DownloadState.Downloaded(destinationFile))
                 return@flow
             }
 
-            emit(DownloadState.Downloaded(destinationFile))
+            if (partFile.exists()) {
+                partFile.delete()
+            }
+
+            var bytesDownloaded = 0L
+            val inputStream: InputStream = finalConnection.inputStream
+            val outputStream = FileOutputStream(partFile)
+
+            // Optimized 32KB streaming buffer: reduces system call and I/O overhead on slow eMMC storage
+            val buffer = ByteArray(32 * 1024)
+            var bytesRead: Int
+            var lastEmittedProgress = 0
+
+            try {
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    outputStream.write(buffer, 0, bytesRead)
+                    bytesDownloaded += bytesRead
+
+                    if (totalBytes > 0) {
+                        val progress = ((bytesDownloaded * 100) / totalBytes).toInt()
+                        if (progress > lastEmittedProgress) {
+                            lastEmittedProgress = progress
+                            emit(
+                                DownloadState.Downloading(
+                                    progress = progress,
+                                    bytesDownloaded = bytesDownloaded,
+                                    totalBytes = totalBytes
+                                )
+                            )
+                        }
+                    } else {
+                        emit(
+                            DownloadState.Downloading(
+                                progress = -1,
+                                bytesDownloaded = bytesDownloaded,
+                                totalBytes = 0
+                            )
+                        )
+                    }
+                }
+
+                outputStream.flush()
+            } finally {
+                try { outputStream.close() } catch (_: Exception) {}
+                try { inputStream.close() } catch (_: Exception) {}
+                finalConnection.disconnect()
+            }
+
+            if (!partFile.exists() || partFile.length() == 0L || (totalBytes > 0 && partFile.length() != totalBytes)) {
+                if (partFile.exists()) partFile.delete()
+                emit(DownloadState.Failed("APK download was incomplete or corrupted."))
+                return@flow
+            }
+
+            // Atomically promote temporary file to final destination file
+            if (destinationFile.exists()) {
+                destinationFile.delete()
+            }
+
+            val renameSuccess = partFile.renameTo(destinationFile)
+            val finalFile = if (renameSuccess) destinationFile else partFile
+
+            emit(DownloadState.Downloaded(finalFile))
         } catch (e: UnknownHostException) {
+            tempFile?.let { if (it.exists()) it.delete() }
             emit(DownloadState.Failed("Unable to download APK. Check your internet connection."))
         } catch (e: SocketTimeoutException) {
+            tempFile?.let { if (it.exists()) it.delete() }
             emit(DownloadState.Failed("Unable to download APK. Check your internet connection."))
         } catch (e: ConnectException) {
+            tempFile?.let { if (it.exists()) it.delete() }
             emit(DownloadState.Failed("Unable to download APK. Check your internet connection."))
         } catch (e: MalformedURLException) {
+            tempFile?.let { if (it.exists()) it.delete() }
             emit(DownloadState.Failed("Invalid APK download URL."))
         } catch (e: Exception) {
+            tempFile?.let { if (it.exists()) it.delete() }
             val message = e.localizedMessage?.lowercase() ?: ""
             if (message.contains("unable to resolve host") || message.contains("network") || message.contains("connection")) {
                 emit(DownloadState.Failed("Unable to download APK. Check your internet connection."))

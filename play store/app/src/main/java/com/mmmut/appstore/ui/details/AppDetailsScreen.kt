@@ -20,12 +20,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -86,7 +88,8 @@ fun AppDetailsScreen(
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshInstallStatus()
         viewModel.checkInstallPermission()
     }
 
@@ -276,8 +279,18 @@ private fun AppHeaderSection(app: AppItem) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (app.iconUrl.isNotBlank()) {
+            val context = LocalContext.current
+            val iconRequest = remember(app.iconUrl) {
+                coil.request.ImageRequest.Builder(context)
+                    .data(app.iconUrl)
+                    .size(160, 160)
+                    .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .crossfade(false)
+                    .build()
+            }
             AsyncImage(
-                model = app.iconUrl,
+                model = iconRequest,
                 contentDescription = app.name,
                 modifier = Modifier
                     .size(80.dp)
@@ -448,7 +461,7 @@ private fun ActionButtonsSection(
                                 shape = RoundedCornerShape(24.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = InstallGreenLight)
                             ) {
-                                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("OPEN", fontWeight = FontWeight.Bold)
                             }
